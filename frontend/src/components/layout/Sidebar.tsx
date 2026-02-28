@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { projectsApi, sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi } from '@/api/endpoints'
+import { projectsApi, sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi } from '@/api/endpoints'
 import { useSelectionStore } from '@/stores/selection.store'
 import { useUIStore } from '@/stores/ui.store'
 import { cn, copyToClipboard } from '@/lib/utils'
@@ -15,13 +15,14 @@ import { DHCPPoolForm } from '@/components/data/forms/DHCPPoolForm'
 import { SubnetUtilBar } from '@/components/shared/SubnetUtilBar'
 import { ProjectForm } from '@/components/data/forms/ProjectForm'
 import { TunnelForm } from '@/components/data/forms/TunnelForm'
+import { PortConnectionForm } from '@/components/data/forms/PortConnectionForm'
 import { toast } from 'sonner'
-import type { Project, Site, VLAN, Subnet, Host, Tunnel, DHCPPool } from '@/types'
+import type { Project, Site, VLAN, Subnet, Host, Tunnel, DHCPPool, PortConnection } from '@/types'
 import {
   FolderOpen, MapPin, Network, Server, Monitor,
   ChevronRight, ChevronDown, Plus,
   Pencil, Trash2, Cable, Layers,
-  ChevronsUpDown, ChevronsDownUp,
+  ChevronsUpDown, ChevronsDownUp, ArrowLeftRight,
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -154,6 +155,7 @@ function ProjectTreeItem({
   const navigate = useNavigate()
   const [addSiteOpen, setAddSiteOpen] = useState(false)
   const [addTunnelOpen, setAddTunnelOpen] = useState(false)
+  const [addConnectionOpen, setAddConnectionOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const expanded = useSelectionStore((s) => s.expandedProjectIds.has(project.id))
   const toggleExpanded = useSelectionStore((s) => s.toggleExpandedProject)
@@ -181,8 +183,16 @@ function ProjectTreeItem({
     enabled: isActive || expanded,
   })
 
+  const { data: connectionsData } = useQuery({
+    queryKey: ['port-connections-all', project.id],
+    queryFn: () => portConnectionsApi.list(),
+    select: (res) => res.data,
+    enabled: isActive || expanded,
+  })
+
   const sites = sitesData ?? []
   const tunnels = tunnelsData ?? []
+  const connections = connectionsData ?? []
   const isExpanded = isActive && expanded
 
   const handleClick = () => {
@@ -224,6 +234,7 @@ function ProjectTreeItem({
           ...(isActive ? [
             { label: 'Add Site', icon: <MapPin className="h-3 w-3" />, onClick: () => setAddSiteOpen(true) },
             { label: 'Add Tunnel', icon: <Cable className="h-3 w-3" />, onClick: () => setAddTunnelOpen(true) },
+            { label: 'Add Connection', icon: <ArrowLeftRight className="h-3 w-3" />, onClick: () => setAddConnectionOpen(true) },
           ] : []),
           { label: 'Edit', icon: <Pencil className="h-3 w-3" />, onClick: () => setEditOpen(true) },
           { label: 'Delete', icon: <Trash2 className="h-3 w-3" />, variant: 'destructive' as const, onClick: confirmDelete },
@@ -248,6 +259,20 @@ function ProjectTreeItem({
           {tunnels.map((tunnel) => (
             <TunnelTreeItem key={tunnel.id} tunnel={tunnel} projectId={project.id} />
           ))}
+
+          <div className="group flex items-center px-1.5 pt-1">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+              Port Connections{connections.length > 0 && ` (${connections.length})`}
+            </span>
+            <div className="ml-auto">
+              <DropdownMenu items={[
+                { label: 'Add Connection', icon: <ArrowLeftRight className="h-3 w-3" />, onClick: () => setAddConnectionOpen(true) },
+              ]} />
+            </div>
+          </div>
+          {connections.map((conn) => (
+            <PortConnectionTreeItem key={conn.id} connection={conn} projectId={project.id} />
+          ))}
         </div>
       )}
 
@@ -257,6 +282,10 @@ function ProjectTreeItem({
 
       <Dialog open={addTunnelOpen} onOpenChange={setAddTunnelOpen} title="Add Tunnel">
         <TunnelForm projectId={project.id} onClose={() => setAddTunnelOpen(false)} />
+      </Dialog>
+
+      <Dialog open={addConnectionOpen} onOpenChange={setAddConnectionOpen} title="Add Port Connection">
+        <PortConnectionForm projectId={project.id} onClose={() => setAddConnectionOpen(false)} />
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen} title="Edit Project">
@@ -817,6 +846,53 @@ function HostTreeItem({ host, subnetId }: { host: Host; subnetId: number }) {
 
       <Dialog open={editOpen} onOpenChange={setEditOpen} title="Edit Host">
         <HostForm subnetId={subnetId} host={host} onClose={() => setEditOpen(false)} />
+      </Dialog>
+    </div>
+  )
+}
+
+// ── Port Connection (leaf) ────────────────────────────────────
+
+function PortConnectionTreeItem({ connection, projectId }: { connection: PortConnection; projectId: number }) {
+  const queryClient = useQueryClient()
+  const [editOpen, setEditOpen] = useState(false)
+
+  const deleteMutation = useMutation({
+    mutationFn: () => portConnectionsApi.delete(connection.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['port-connections-all'] })
+      queryClient.invalidateQueries({ queryKey: ['port-connections'] })
+      queryClient.invalidateQueries({ queryKey: ['host-ports'] })
+      toast.success('Connection deleted')
+    },
+  })
+
+  return (
+    <div>
+      <div className="group flex items-center">
+        <button
+          onClick={() => setEditOpen(true)}
+          className="flex flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-xs transition-colors min-w-0 hover:bg-accent/50"
+        >
+          <ArrowLeftRight className="h-3 w-3 shrink-0 text-green-500" />
+          <span className="font-mono text-[11px] shrink-0 truncate">
+            {connection.host_a_name} / {connection.port_a_name}
+          </span>
+          <span className="text-muted-foreground shrink-0 text-[10px]">↔</span>
+          <span className="font-mono text-[11px] truncate text-muted-foreground">
+            {connection.host_b_name} / {connection.port_b_name}
+          </span>
+        </button>
+        <DropdownMenu items={[
+          { label: 'Edit', icon: <Pencil className="h-3 w-3" />, onClick: () => setEditOpen(true) },
+          { label: 'Delete', icon: <Trash2 className="h-3 w-3" />, variant: 'destructive', onClick: () => {
+            if (window.confirm('Delete this port connection?')) deleteMutation.mutate()
+          }},
+        ]} />
+      </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen} title="Edit Port Connection">
+        <PortConnectionForm projectId={projectId} connection={connection} onClose={() => setEditOpen(false)} />
       </Dialog>
     </div>
   )
