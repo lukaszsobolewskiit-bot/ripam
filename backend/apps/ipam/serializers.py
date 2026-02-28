@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from apps.projects.models import Project, Site
 from apps.projects.serializers import SiteWanAddressSerializer
-from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort
+from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection
 from .validators import (
     check_ip_duplicate_in_project, check_ip_in_subnet, check_subnet_overlap,
     check_pool_range_in_subnet, check_pool_overlap, check_static_ip_not_in_pool, check_lease_ip_in_pool,
@@ -55,10 +55,61 @@ class ManufacturerSerializer(serializers.ModelSerializer):
 
 
 class HostPortSerializer(serializers.ModelSerializer):
+    connected_to = serializers.SerializerMethodField()
+
     class Meta:
         model = HostPort
-        fields = ["id", "host", "name", "port_type", "description", "position"]
+        fields = ["id", "host", "name", "port_type", "description", "position", "connected_to"]
         read_only_fields = ["id"]
+
+    def get_connected_to(self, obj):
+        conn = getattr(obj, 'connection_as_a', None) or getattr(obj, 'connection_as_b', None)
+        if not conn:
+            return None
+        other_port = conn.port_b if conn.port_a_id == obj.id else conn.port_a
+        other_host = other_port.host
+        return {
+            "connection_id": conn.id,
+            "port_id": other_port.id,
+            "port_name": other_port.name,
+            "host_id": other_host.id,
+            "host_name": other_host.hostname or str(other_host.ip_address),
+        }
+
+
+class PortConnectionSerializer(serializers.ModelSerializer):
+    port_a_name = serializers.CharField(source="port_a.name", read_only=True)
+    port_b_name = serializers.CharField(source="port_b.name", read_only=True)
+    port_a_type = serializers.CharField(source="port_a.port_type", read_only=True)
+    port_b_type = serializers.CharField(source="port_b.port_type", read_only=True)
+    host_a_id = serializers.IntegerField(source="port_a.host_id", read_only=True)
+    host_b_id = serializers.IntegerField(source="port_b.host_id", read_only=True)
+    host_a_name = serializers.SerializerMethodField()
+    host_b_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PortConnection
+        fields = [
+            "id", "port_a", "port_b", "description", "created_at",
+            "port_a_name", "port_b_name", "port_a_type", "port_b_type",
+            "host_a_id", "host_b_id", "host_a_name", "host_b_name",
+        ]
+        read_only_fields = ["id", "created_at"]
+
+    def get_host_a_name(self, obj):
+        h = obj.port_a.host
+        return h.hostname or str(h.ip_address)
+
+    def get_host_b_name(self, obj):
+        h = obj.port_b.host
+        return h.hostname or str(h.ip_address)
+
+    def validate(self, attrs):
+        port_a = attrs.get("port_a") or (self.instance and self.instance.port_a)
+        port_b = attrs.get("port_b") or (self.instance and self.instance.port_b)
+        if port_a and port_b and port_a.id == port_b.id:
+            raise serializers.ValidationError("A port cannot be connected to itself.")
+        return attrs
 
 
 class HostSerializer(serializers.ModelSerializer):

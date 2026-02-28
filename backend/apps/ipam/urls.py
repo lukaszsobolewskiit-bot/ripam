@@ -14,6 +14,7 @@ router.register(r"manufacturers", views.ManufacturerViewSet, basename="manufactu
 router.register(r"device-models", views.DeviceModelViewSet, basename="devicemodel")
 router.register(r"port-templates", views.PortTemplateViewSet, basename="porttemplate")
 router.register(r"host-ports", views.HostPortViewSet, basename="hostport")
+router.register(r"port-connections", views.PortConnectionViewSet, basename="portconnection")
 
 urlpatterns = [
     path("", include(router.urls)),

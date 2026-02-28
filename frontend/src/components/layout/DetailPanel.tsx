@@ -3,7 +3,7 @@ import { useUIStore } from '@/stores/ui.store'
 import { useSelectionStore } from '@/stores/selection.store'
 import { useTopologyStore } from '@/stores/topology.store'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi } from '@/api/endpoints'
+import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi } from '@/api/endpoints'
 import { CopyableIP } from '@/components/shared/CopyableIP'
 import { cn } from '@/lib/utils'
 import { SubnetUtilBar } from '@/components/shared/SubnetUtilBar'
@@ -14,12 +14,13 @@ import { SubnetForm } from '@/components/data/forms/SubnetForm'
 import { HostForm } from '@/components/data/forms/HostForm'
 import { DHCPPoolForm } from '@/components/data/forms/DHCPPoolForm'
 import { TunnelForm } from '@/components/data/forms/TunnelForm'
+import { PortConnectionForm } from '@/components/data/forms/PortConnectionForm'
 import { toast } from 'sonner'
 import type { Host } from '@/types'
 import { useDeviceTypeLabel } from '@/hooks/useDeviceTypeLabel'
 import {
   X, Pencil, Trash2, Plus,
-  MapPin, Network, Server, Monitor, Cable, Layers,
+  MapPin, Network, Server, Monitor, Cable, Layers, ArrowLeftRight,
 } from 'lucide-react'
 
 export function DetailPanel({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -428,12 +429,22 @@ function TunnelDetail({ tunnelId, projectId }: { tunnelId: number; projectId: nu
 function HostDetail({ hostId }: { hostId: number }) {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const [connectPortOpen, setConnectPortOpen] = useState(false)
+  const [editConnectionId, setEditConnectionId] = useState<number | null>(null)
   const getLabel = useDeviceTypeLabel()
+  const selectedProjectId = useSelectionStore((s) => s.selectedProjectId)
 
   const { data: host } = useQuery({
     queryKey: ['host', hostId],
     queryFn: () => hostsApi.get(hostId),
     select: (res) => res.data,
+  })
+
+  const { data: connections } = useQuery({
+    queryKey: ['port-connections', { host: hostId }],
+    queryFn: () => portConnectionsApi.list({ host: String(hostId) }),
+    select: (res) => res.data,
+    enabled: !!hostId,
   })
 
   const deleteMutation = useMutation({
@@ -446,7 +457,20 @@ function HostDetail({ hostId }: { hostId: number }) {
     },
   })
 
+  const deleteConnectionMutation = useMutation({
+    mutationFn: (id: number) => portConnectionsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['port-connections'] })
+      queryClient.invalidateQueries({ queryKey: ['host-ports'] })
+      queryClient.invalidateQueries({ queryKey: ['host', hostId] })
+      toast.success('Connection removed')
+    },
+  })
+
   if (!host) return <DetailLoading />
+
+  const ports = host.ports ?? []
+  const editConnection = connections?.find((c) => c.id === editConnectionId)
 
   return (
     <div className="p-3 space-y-3">
@@ -463,8 +487,91 @@ function HostDetail({ hostId }: { hostId: number }) {
       <dl className="space-y-1.5 text-xs">
         {host.mac_address && <DetailRow label="MAC" value={host.mac_address} mono />}
         <DetailRow label="Device Type" value={getLabel(host.device_type)} />
+        {host.device_model_name && <DetailRow label="Model" value={host.device_model_name} />}
         {host.description && <DetailRow label="Description" value={host.description} />}
       </dl>
+
+      {/* Ports section */}
+      {ports.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <h4 className="text-xs font-semibold uppercase text-muted-foreground">
+              Ports ({ports.length})
+            </h4>
+            <button
+              onClick={() => setConnectPortOpen(true)}
+              className="text-xs text-primary hover:underline flex items-center gap-1"
+            >
+              <Cable className="h-3 w-3" /> Connect
+            </button>
+          </div>
+          <div className="space-y-1">
+            {ports.map((port) => (
+              <div
+                key={port.id}
+                className="flex items-center gap-2 rounded border border-border px-2 py-1 text-xs"
+              >
+                <span className="font-mono font-medium flex-1">{port.name}</span>
+                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                  {port.port_type.toUpperCase()}
+                </span>
+                {port.connected_to ? (
+                  <div className="flex items-center gap-1 min-w-0">
+                    <Cable className="h-3 w-3 text-green-500 shrink-0" />
+                    <span className="text-[10px] text-green-600 dark:text-green-400 truncate max-w-[80px]" title={`${port.connected_to.host_name} / ${port.connected_to.port_name}`}>
+                      {port.connected_to.host_name}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (window.confirm('Remove this port connection?')) {
+                          deleteConnectionMutation.mutate(port.connected_to!.connection_id)
+                        }
+                      }}
+                      className="p-0.5 rounded hover:bg-destructive/20 shrink-0"
+                      title="Remove connection"
+                    >
+                      <X className="h-2.5 w-2.5 text-muted-foreground" />
+                    </button>
+                  </div>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">free</span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Connections summary (cross-host view) */}
+      {connections && connections.length > 0 && (
+        <div>
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
+            Connections ({connections.length})
+          </h4>
+          <div className="space-y-1">
+            {connections.map((conn) => {
+              const isA = conn.host_a_id === hostId
+              const myPort = isA ? conn.port_a_name : conn.port_b_name
+              const otherHost = isA ? conn.host_b_name : conn.host_a_name
+              const otherPort = isA ? conn.port_b_name : conn.port_a_name
+              return (
+                <div key={conn.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground rounded border border-border px-2 py-1">
+                  <span className="font-mono font-medium text-foreground">{myPort}</span>
+                  <ArrowLeftRight className="h-3 w-3 shrink-0" />
+                  <span className="truncate">{otherHost} / {otherPort}</span>
+                  <button
+                    onClick={() => setEditConnectionId(conn.id)}
+                    className="ml-auto p-0.5 rounded hover:bg-accent shrink-0"
+                    title="Edit"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <DetailActions
         onEdit={() => setEditOpen(true)}
@@ -475,6 +582,28 @@ function HostDetail({ hostId }: { hostId: number }) {
 
       <Dialog open={editOpen} onOpenChange={setEditOpen} title="Edit Host">
         <HostForm subnetId={host.subnet} host={host} onClose={() => setEditOpen(false)} />
+      </Dialog>
+
+      <Dialog open={connectPortOpen} onOpenChange={setConnectPortOpen} title="Connect Port">
+        <PortConnectionForm
+          projectId={selectedProjectId!}
+          defaultHostId={hostId}
+          onClose={() => setConnectPortOpen(false)}
+        />
+      </Dialog>
+
+      <Dialog
+        open={editConnectionId !== null}
+        onOpenChange={(open) => { if (!open) setEditConnectionId(null) }}
+        title="Edit Connection"
+      >
+        {editConnection && (
+          <PortConnectionForm
+            projectId={selectedProjectId!}
+            connection={editConnection}
+            onClose={() => setEditConnectionId(null)}
+          />
+        )}
       </Dialog>
     </div>
   )

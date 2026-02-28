@@ -123,6 +123,29 @@ export interface HostPort {
   port_type: PortType
   description: string
   position: number
+  connected_to: {
+    connection_id: number
+    port_id: number
+    port_name: string
+    host_id: number
+    host_name: string
+  } | null
+}
+
+export interface PortConnection {
+  id: number
+  port_a: number
+  port_b: number
+  description: string
+  created_at: string
+  port_a_name: string
+  port_b_name: string
+  port_a_type: PortType
+  port_b_type: PortType
+  host_a_id: number
+  host_b_id: number
+  host_a_name: string
+  host_b_name: string
 }
 
 export interface Host {

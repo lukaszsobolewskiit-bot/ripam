@@ -1,5 +1,6 @@
 import ipaddress
 
+from django.db import models
 from django.db.models import Count, Q
 from django.db.models.expressions import RawSQL
 from rest_framework import status, viewsets
@@ -10,12 +11,13 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
 from .filters import HostFilter, SubnetFilter, TunnelFilter, VLANFilter, DHCPPoolFilter
-from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort
+from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection
 from .permissions import IsAdmin, ProjectPermission
 from .serializers import (
     HostSerializer, SubnetSerializer, TunnelSerializer, VLANSerializer,
     DHCPPoolSerializer, DeviceTypeSerializer,
     ManufacturerSerializer, DeviceModelSerializer, PortTemplateSerializer, HostPortSerializer,
+    PortConnectionSerializer,
 )
 
 
@@ -411,4 +413,21 @@ class HostPortViewSet(viewsets.ModelViewSet):
         host = self.request.query_params.get("host")
         if host:
             qs = qs.filter(host_id=host)
+        return qs
+
+
+class PortConnectionViewSet(viewsets.ModelViewSet):
+    serializer_class = PortConnectionSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = PortConnection.objects.select_related(
+            "port_a__host", "port_b__host"
+        )
+        host = self.request.query_params.get("host")
+        if host:
+            qs = qs.filter(
+                models.Q(port_a__host_id=host) | models.Q(port_b__host_id=host)
+            )
         return qs

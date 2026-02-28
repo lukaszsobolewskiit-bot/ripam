@@ -1,7 +1,7 @@
 import type {
   Project, Site, VLAN, Subnet, Host, Tunnel, DHCPPool, DeviceTypeOption,
   ProjectTopology, SearchResult, PaginatedResponse, AuditLog, User, UserAdmin,
-  Manufacturer, DeviceModel, PortTemplate, HostPort,
+  Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection,
 } from '@/types'
 import apiClient from './client'
 
@@ -137,6 +137,18 @@ export const hostPortsApi = {
     apiClient.patch<HostPort>(`/host-ports/${id}/`, data),
   delete: (id: number) =>
     apiClient.delete(`/host-ports/${id}/`),
+}
+
+// Port Connections
+export const portConnectionsApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<PortConnection[]>('/port-connections/', { params }),
+  create: (data: Partial<PortConnection>) =>
+    apiClient.post<PortConnection>('/port-connections/', data),
+  update: (id: number, data: Partial<PortConnection>) =>
+    apiClient.patch<PortConnection>(`/port-connections/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/port-connections/${id}/`),
 }
 
 // Hosts
