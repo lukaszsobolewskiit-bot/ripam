@@ -4,14 +4,15 @@ import { projectsApi } from '@/api/endpoints'
 import { TopologyCanvas } from '@/components/topology/TopologyCanvas'
 import { GeoMap } from '@/components/geo/GeoMap'
 import { ProjectTableView } from '@/components/data/tables/ProjectTableView'
+import { PortConnectionsTopology } from '@/components/topology/PortConnectionsTopology'
 
 import { useEffect } from 'react'
 import { useSelectionStore } from '@/stores/selection.store'
 
 function parseView(wildcard: string | undefined) {
   if (!wildcard) return undefined
-  const view = wildcard.split('/')[0] as 'topology' | 'geo' | 'table'
-  if (view === 'topology' || view === 'geo' || view === 'table') return view
+  const view = wildcard.split('/')[0] as 'topology' | 'geo' | 'table' | 'connections'
+  if (view === 'topology' || view === 'geo' || view === 'table' || view === 'connections') return view
   return undefined
 }
 
@@ -41,12 +42,12 @@ export function ProjectPage() {
       if (e.key === '1') navigate(`/projects/${id}/table`, { replace: true })
       else if (e.key === '2') navigate(`/projects/${id}/topology`, { replace: true })
       else if (e.key === '3') navigate(`/projects/${id}/geo`, { replace: true })
+      else if (e.key === '4') navigate(`/projects/${id}/connections`, { replace: true })
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
   }, [id, navigate])
 
-  // Redirect bare /projects/:id to /projects/:id/topology
   if (!view) {
     return <Navigate to={`/projects/${id}/topology`} replace />
   }
@@ -68,10 +69,32 @@ export function ProjectPage() {
         {project.supernet && (
           <span className="text-xs font-mono text-muted-foreground hidden sm:inline">{project.supernet}</span>
         )}
-        <div className="ml-auto items-center gap-1 text-[10px] text-muted-foreground hidden md:flex">
-          <kbd className="rounded border border-border px-1">1</kbd> Topo
-          <kbd className="rounded border border-border px-1 ml-2">2</kbd> Geo
-          <kbd className="rounded border border-border px-1 ml-2">3</kbd> Table
+
+        {/* View switcher buttons */}
+        <div className="ml-auto flex items-center gap-1">
+          {(
+            [
+              { key: 'topology', label: 'Topology', kbd: '2' },
+              { key: 'connections', label: 'Connections', kbd: '4' },
+              { key: 'geo', label: 'Geo', kbd: '3' },
+              { key: 'table', label: 'Table', kbd: '1' },
+            ] as const
+          ).map(({ key, label, kbd }) => (
+            <button
+              key={key}
+              onClick={() => navigate(`/projects/${id}/${key}`, { replace: true })}
+              className={`flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors ${
+                view === key
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+              }`}
+            >
+              {label}
+              <kbd className={`hidden md:inline rounded border px-1 text-[9px] ${view === key ? 'border-primary-foreground/30' : 'border-border'}`}>
+                {kbd}
+              </kbd>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -80,6 +103,7 @@ export function ProjectPage() {
         {view === 'topology' && <TopologyCanvas projectId={id} />}
         {view === 'geo' && <GeoMap projectId={id} />}
         {view === 'table' && <ProjectTableView projectId={id} />}
+        {view === 'connections' && <PortConnectionsTopology projectId={id} />}
       </div>
     </div>
   )
