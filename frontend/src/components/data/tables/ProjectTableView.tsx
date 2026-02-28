@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi } from '@/api/endpoints'
@@ -19,6 +19,101 @@ import {
 } from 'lucide-react'
 import type { Site, VLAN, Subnet, Host, Tunnel, DHCPPool, PortConnection } from '@/types'
 import { useDeviceTypeLabel } from '@/hooks/useDeviceTypeLabel'
+
+// ─── Host IP cell with hover tooltip ──────────────────────────
+
+function HostIPCell({ host, connections }: {
+  host: Host
+  connections: PortConnection[]
+}) {
+  const [visible, setVisible] = useState(false)
+  const [pos, setPos] = useState({ x: 0, y: 0 })
+  const getLabel = useDeviceTypeLabel()
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const bare = host.ip_address.split('/')[0]
+
+  const show = (e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setPos({ x: rect.right + 8, y: rect.top })
+    timerRef.current = setTimeout(() => setVisible(true), 300)
+  }
+  const hide = () => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    setVisible(false)
+  }
+
+  return (
+    <span className="relative inline-flex items-center">
+      <span
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        className="font-mono text-sm cursor-default"
+      >
+        {bare}
+      </span>
+      {visible && (
+        <div
+          className="fixed z-50 min-w-[200px] max-w-[280px] rounded-lg border border-border bg-popover shadow-lg text-xs p-3 space-y-1.5"
+          style={{ left: pos.x, top: pos.y }}
+          onMouseEnter={() => setVisible(true)}
+          onMouseLeave={hide}
+        >
+          <div className="font-semibold text-sm">{host.hostname || bare}</div>
+          <div className="font-mono text-muted-foreground">{bare}</div>
+          {host.device_type && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Type:</span>
+              <span className="bg-muted px-1.5 py-0.5 rounded">{getLabel(host.device_type)}</span>
+            </div>
+          )}
+          {host.device_model_name && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Model:</span>
+              <span>{host.device_model_name}</span>
+            </div>
+          )}
+          {host.mac_address && (
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">MAC:</span>
+              <span className="font-mono">{host.mac_address}</span>
+            </div>
+          )}
+          {host.description && (
+            <div className="text-muted-foreground italic">{host.description}</div>
+          )}
+          {host.ports && host.ports.length > 0 && (
+            <div>
+              <div className="text-muted-foreground mb-0.5">Ports ({host.ports.length}):</div>
+              <div className="flex flex-wrap gap-1">
+                {host.ports.map((p) => (
+                  <span key={p.id} className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${p.connected_to ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                    {p.name}
+                    {p.connected_to && ` → ${p.connected_to.host_name}`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {connections.length > 0 && (
+            <div>
+              <div className="text-muted-foreground mb-0.5">Connections:</div>
+              {connections.map((c) => {
+                const isA = c.host_a_id === host.id
+                return (
+                  <div key={c.id} className="flex items-center gap-1 text-[10px]">
+                    <span className="font-mono text-green-600">{isA ? c.port_a_name : c.port_b_name}</span>
+                    <span className="text-muted-foreground">→</span>
+                    <span className="truncate">{isA ? c.host_b_name : c.host_a_name}/{isA ? c.port_b_name : c.port_a_name}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </span>
+  )
+}
 
 // ─── Tree node types ──────────────────────────────────────────
 
@@ -655,7 +750,7 @@ function SubnetRow({
             <td className={cn('px-2 md:px-3 py-1.5', childPl)}>
               <span className="flex items-center gap-1.5 text-sm">
                 <Server className="h-3 w-3 text-orange-500" />
-                <CopyableIP ip={host.ip_address} />
+                <HostIPCell host={host} connections={hostConns} />
                 {host.hostname && (
                   <span className="text-muted-foreground hidden sm:inline">({host.hostname})</span>
                 )}
@@ -750,7 +845,7 @@ function SubnetRow({
                   <td className={cn('px-2 md:px-3 py-1.5', leasePl)}>
                     <span className="flex items-center gap-1.5 text-sm">
                       <Server className="h-3 w-3 text-orange-500" />
-                      <CopyableIP ip={host.ip_address} />
+                      <HostIPCell host={host} connections={hostConns} />
                       {host.hostname && (
                         <span className="text-muted-foreground hidden sm:inline">({host.hostname})</span>
                       )}

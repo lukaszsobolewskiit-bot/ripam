@@ -198,19 +198,37 @@ function DeviceCatalogSection() {
   const [expandedManufacturer, setExpandedManufacturer] = useState<number | null>(null)
   const [expandedModel, setExpandedModel] = useState<number | null>(null)
 
-  // Add manufacturer form
+  // Add manufacturer
   const [newMfgName, setNewMfgName] = useState('')
   const [newMfgDesc, setNewMfgDesc] = useState('')
 
-  // Add model form (per manufacturer)
+  // Edit manufacturer
+  const [editMfgId, setEditMfgId] = useState<number | null>(null)
+  const [editMfgName, setEditMfgName] = useState('')
+  const [editMfgDesc, setEditMfgDesc] = useState('')
+
+  // Add model (per manufacturer)
   const [addModelFor, setAddModelFor] = useState<number | null>(null)
   const [newModelName, setNewModelName] = useState('')
   const [newModelType, setNewModelType] = useState('')
 
-  // Add port form (per model)
+  // Edit model
+  const [editModelId, setEditModelId] = useState<number | null>(null)
+  const [editModelName, setEditModelName] = useState('')
+  const [editModelType, setEditModelType] = useState('')
+
+  // Add ports (bulk rows per model)
   const [addPortFor, setAddPortFor] = useState<number | null>(null)
-  const [newPortName, setNewPortName] = useState('')
-  const [newPortType, setNewPortType] = useState<PortType>('rj45')
+  const [portRows, setPortRows] = useState<{ name: string; port_type: PortType }[]>([
+    { name: '', port_type: 'rj45' },
+  ])
+
+  // Device types for select
+  const { data: deviceTypes } = useQuery({
+    queryKey: ['device-types'],
+    queryFn: () => deviceTypesApi.list(),
+    select: (res) => res.data,
+  })
 
   const { data: manufacturers } = useQuery({
     queryKey: ['manufacturers'],
@@ -227,6 +245,17 @@ function DeviceCatalogSection() {
       toast.success('Manufacturer added')
     },
     onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to add manufacturer')),
+  })
+
+  const updateMfg = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<Manufacturer> }) =>
+      manufacturersApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
+      setEditMfgId(null)
+      toast.success('Manufacturer updated')
+    },
+    onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to update manufacturer')),
   })
 
   const deleteMfg = useMutation({
@@ -251,6 +280,18 @@ function DeviceCatalogSection() {
     onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to add model')),
   })
 
+  const updateModel = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<DeviceModel> }) =>
+      deviceModelsApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
+      queryClient.invalidateQueries({ queryKey: ['device-models'] })
+      setEditModelId(null)
+      toast.success('Model updated')
+    },
+    onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to update model')),
+  })
+
   const deleteModel = useMutation({
     mutationFn: (id: number) => deviceModelsApi.delete(id),
     onSuccess: () => {
@@ -263,14 +304,6 @@ function DeviceCatalogSection() {
 
   const createPort = useMutation({
     mutationFn: (data: Partial<PortTemplate>) => portTemplatesApi.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
-      setAddPortFor(null)
-      setNewPortName('')
-      setNewPortType('rj45')
-      toast.success('Port added')
-    },
-    onError: (err: unknown) => toast.error(extractApiError(err, 'Failed to add port')),
   })
 
   const deletePort = useMutation({
@@ -289,6 +322,45 @@ function DeviceCatalogSection() {
     createMfg.mutate({ name: newMfgName.trim(), slug, description: newMfgDesc.trim() })
   }
 
+  const handleSaveMfg = () => {
+    if (!editMfgName.trim() || editMfgId === null) return
+    const slug = editMfgName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    updateMfg.mutate({ id: editMfgId, data: { name: editMfgName.trim(), slug, description: editMfgDesc.trim() } })
+  }
+
+  const handleSaveModel = () => {
+    if (!editModelName.trim() || editModelId === null) return
+    updateModel.mutate({ id: editModelId, data: { name: editModelName.trim(), device_type: editModelType.trim() } })
+  }
+
+  const handleAddPorts = async (modelId: number, position: number) => {
+    const valid = portRows.filter((r) => r.name.trim())
+    if (!valid.length) return
+    try {
+      for (let i = 0; i < valid.length; i++) {
+        await createPort.mutateAsync({
+          device_model: modelId,
+          name: valid[i].name.trim(),
+          port_type: valid[i].port_type,
+          position: position + i,
+        })
+      }
+      queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
+      setAddPortFor(null)
+      setPortRows([{ name: '', port_type: 'rj45' }])
+      toast.success(`${valid.length} port(s) added`)
+    } catch (err: unknown) {
+      toast.error(extractApiError(err, 'Failed to add ports'))
+    }
+  }
+
+  const updatePortRow = (i: number, field: 'name' | 'port_type', val: string) => {
+    setPortRows((rows) => rows.map((r, idx) => idx === i ? { ...r, [field]: val } : r))
+  }
+
+  const addPortRow = () => setPortRows((rows) => [...rows, { name: '', port_type: 'rj45' }])
+  const removePortRow = (i: number) => setPortRows((rows) => rows.filter((_, idx) => idx !== i))
+
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
@@ -303,75 +375,155 @@ function DeviceCatalogSection() {
       <div className="space-y-2">
         {manufacturers?.map((mfg) => (
           <div key={mfg.id} className="rounded-md border border-border overflow-hidden">
-            {/* Manufacturer row */}
-            <div className="flex items-center gap-2 px-3 py-2 bg-muted/30">
-              <button
-                onClick={() => setExpandedManufacturer(expandedManufacturer === mfg.id ? null : mfg.id)}
-                className="flex items-center gap-1.5 flex-1 text-left"
-              >
-                {expandedManufacturer === mfg.id
-                  ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                  : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
-                }
-                <span className="text-sm font-medium">{mfg.name}</span>
-                <span className="text-xs text-muted-foreground">({mfg.model_count} models)</span>
-              </button>
-              <button
-                onClick={() => deleteMfg.mutate(mfg.id)}
-                className="p-0.5 rounded hover:bg-destructive/20"
-                title="Delete manufacturer"
-              >
-                <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
-            </div>
+            {/* Manufacturer header */}
+            {editMfgId === mfg.id ? (
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/30 border-b border-border">
+                <input
+                  value={editMfgName}
+                  onChange={(e) => setEditMfgName(e.target.value)}
+                  className="flex-1 rounded border border-input bg-background px-2 py-0.5 text-xs font-medium"
+                  placeholder="Manufacturer name"
+                  autoFocus
+                />
+                <input
+                  value={editMfgDesc}
+                  onChange={(e) => setEditMfgDesc(e.target.value)}
+                  className="flex-1 rounded border border-input bg-background px-2 py-0.5 text-xs text-muted-foreground"
+                  placeholder="Description (optional)"
+                />
+                <button
+                  onClick={handleSaveMfg}
+                  disabled={updateMfg.isPending}
+                  className="rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50"
+                >Save</button>
+                <button
+                  onClick={() => setEditMfgId(null)}
+                  className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
+                >Cancel</button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-3 py-2 bg-muted/30">
+                <button
+                  onClick={() => setExpandedManufacturer(expandedManufacturer === mfg.id ? null : mfg.id)}
+                  className="flex items-center gap-1.5 flex-1 text-left"
+                >
+                  {expandedManufacturer === mfg.id
+                    ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                    : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  }
+                  <span className="text-sm font-medium">{mfg.name}</span>
+                  {mfg.description && (
+                    <span className="text-xs text-muted-foreground truncate hidden sm:inline">{mfg.description}</span>
+                  )}
+                  <span className="text-xs text-muted-foreground ml-auto">({mfg.model_count} models)</span>
+                </button>
+                <button
+                  onClick={() => { setEditMfgId(mfg.id); setEditMfgName(mfg.name); setEditMfgDesc(mfg.description || '') }}
+                  className="p-0.5 rounded hover:bg-accent"
+                  title="Edit manufacturer"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+                <button
+                  onClick={() => { if (window.confirm(`Delete manufacturer "${mfg.name}"?`)) deleteMfg.mutate(mfg.id) }}
+                  className="p-0.5 rounded hover:bg-destructive/20"
+                  title="Delete manufacturer"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              </div>
+            )}
 
             {/* Models */}
             {expandedManufacturer === mfg.id && (
               <div className="px-3 pb-3 space-y-2 pt-2">
                 {mfg.device_models?.map((model) => (
                   <div key={model.id} className="rounded border border-border overflow-hidden ml-4">
-                    {/* Model row */}
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-background">
-                      <button
-                        onClick={() => setExpandedModel(expandedModel === model.id ? null : model.id)}
-                        className="flex items-center gap-1.5 flex-1 text-left"
-                      >
-                        {expandedModel === model.id
-                          ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
-                          : <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                        }
-                        <span className="text-xs font-medium">{model.name}</span>
-                        {model.device_type && (
-                          <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                            {model.device_type}
+                    {/* Model header */}
+                    {editModelId === model.id ? (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-background border-b border-border">
+                        <input
+                          value={editModelName}
+                          onChange={(e) => setEditModelName(e.target.value)}
+                          className="flex-1 rounded border border-input bg-background px-2 py-0.5 text-xs font-medium"
+                          placeholder="Model name"
+                          autoFocus
+                        />
+                        <select
+                          value={editModelType}
+                          onChange={(e) => setEditModelType(e.target.value)}
+                          className="rounded border border-input bg-background px-2 py-0.5 text-xs"
+                        >
+                          <option value="">— Device type —</option>
+                          {deviceTypes?.map((dt) => (
+                            <option key={dt.id} value={dt.value}>{dt.label}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={handleSaveModel}
+                          disabled={updateModel.isPending}
+                          className="rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50"
+                        >Save</button>
+                        <button
+                          onClick={() => setEditModelId(null)}
+                          className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
+                        >Cancel</button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 px-3 py-1.5 bg-background">
+                        <button
+                          onClick={() => setExpandedModel(expandedModel === model.id ? null : model.id)}
+                          className="flex items-center gap-1.5 flex-1 text-left"
+                        >
+                          {expandedModel === model.id
+                            ? <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                            : <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                          }
+                          <span className="text-xs font-medium">{model.name}</span>
+                          {model.device_type && (
+                            <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                              {deviceTypes?.find((dt) => dt.value === model.device_type)?.label ?? model.device_type}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-muted-foreground">
+                            ({model.port_templates?.length ?? 0} ports)
                           </span>
-                        )}
-                        <span className="text-[10px] text-muted-foreground">
-                          ({model.port_templates?.length ?? 0} ports)
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setAddPortFor(addPortFor === model.id ? null : model.id)
-                          setExpandedModel(model.id)
-                        }}
-                        className="p-0.5 rounded hover:bg-accent"
-                        title="Add port"
-                      >
-                        <Plus className="h-3 w-3 text-muted-foreground" />
-                      </button>
-                      <button
-                        onClick={() => deleteModel.mutate(model.id)}
-                        className="p-0.5 rounded hover:bg-destructive/20"
-                        title="Delete model"
-                      >
-                        <Trash2 className="h-3 w-3 text-muted-foreground" />
-                      </button>
-                    </div>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setEditModelId(model.id)
+                            setEditModelName(model.name)
+                            setEditModelType(model.device_type || '')
+                          }}
+                          className="p-0.5 rounded hover:bg-accent"
+                          title="Edit model"
+                        >
+                          <Pencil className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAddPortFor(addPortFor === model.id ? null : model.id)
+                            setExpandedModel(model.id)
+                            setPortRows([{ name: '', port_type: 'rj45' }])
+                          }}
+                          className="p-0.5 rounded hover:bg-accent"
+                          title="Add ports"
+                        >
+                          <Plus className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                        <button
+                          onClick={() => { if (window.confirm(`Delete model "${model.name}"?`)) deleteModel.mutate(model.id) }}
+                          className="p-0.5 rounded hover:bg-destructive/20"
+                          title="Delete model"
+                        >
+                          <Trash2 className="h-3 w-3 text-muted-foreground" />
+                        </button>
+                      </div>
+                    )}
 
                     {/* Ports list */}
                     {expandedModel === model.id && (
-                      <div className="px-3 pb-2 pt-1 space-y-1 bg-muted/10 ml-4">
+                      <div className="px-3 pb-2 pt-1 space-y-2 bg-muted/10 ml-4">
                         {model.port_templates?.length > 0 ? (
                           <table className="w-full text-xs">
                             <thead>
@@ -406,52 +558,60 @@ function DeviceCatalogSection() {
                           <p className="text-[10px] text-muted-foreground py-1">No ports defined yet.</p>
                         )}
 
-                        {/* Add port form */}
+                        {/* Bulk add ports form */}
                         {addPortFor === model.id && (
-                          <div className="flex items-end gap-2 pt-2 border-t border-border/50">
-                            <div>
-                              <label className="text-[10px] text-muted-foreground">Port name</label>
-                              <input
-                                value={newPortName}
-                                onChange={(e) => setNewPortName(e.target.value)}
-                                placeholder="e.g. ether1"
-                                className="w-28 rounded border border-input bg-background px-2 py-0.5 text-xs font-mono"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-[10px] text-muted-foreground">Type</label>
-                              <select
-                                value={newPortType}
-                                onChange={(e) => setNewPortType(e.target.value as PortType)}
-                                className="rounded border border-input bg-background px-2 py-0.5 text-xs"
+                          <div className="border-t border-border/50 pt-2 space-y-1.5">
+                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Add ports</p>
+                            {portRows.map((row, i) => (
+                              <div key={i} className="flex items-center gap-1.5">
+                                <input
+                                  value={row.name}
+                                  onChange={(e) => updatePortRow(i, 'name', e.target.value)}
+                                  placeholder={`e.g. ether${i + 1}`}
+                                  className="w-28 rounded border border-input bg-background px-2 py-0.5 text-xs font-mono"
+                                  autoFocus={i === 0}
+                                />
+                                <select
+                                  value={row.port_type}
+                                  onChange={(e) => updatePortRow(i, 'port_type', e.target.value)}
+                                  className="rounded border border-input bg-background px-2 py-0.5 text-xs"
+                                >
+                                  {PORT_TYPE_OPTIONS.map((o) => (
+                                    <option key={o.value} value={o.value}>{o.label}</option>
+                                  ))}
+                                </select>
+                                {portRows.length > 1 && (
+                                  <button
+                                    onClick={() => removePortRow(i)}
+                                    className="p-0.5 rounded hover:bg-destructive/20"
+                                  >
+                                    <Trash2 className="h-3 w-3 text-muted-foreground" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                            <div className="flex items-center gap-2 pt-1">
+                              <button
+                                onClick={addPortRow}
+                                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
                               >
-                                {PORT_TYPE_OPTIONS.map((o) => (
-                                  <option key={o.value} value={o.value}>{o.label}</option>
-                                ))}
-                              </select>
+                                <Plus className="h-3 w-3" /> Add row
+                              </button>
+                              <button
+                                onClick={() => handleAddPorts(model.id, model.port_templates?.length ?? 0)}
+                                disabled={createPort.isPending || portRows.every((r) => !r.name.trim())}
+                                className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50"
+                              >
+                                <Plus className="h-3 w-3" />
+                                Save ports
+                              </button>
+                              <button
+                                onClick={() => { setAddPortFor(null); setPortRows([{ name: '', port_type: 'rj45' }]) }}
+                                className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
+                              >
+                                Cancel
+                              </button>
                             </div>
-                            <button
-                              onClick={() => {
-                                if (!newPortName.trim()) return
-                                createPort.mutate({
-                                  device_model: model.id,
-                                  name: newPortName.trim(),
-                                  port_type: newPortType,
-                                  position: model.port_templates?.length ?? 0,
-                                })
-                              }}
-                              disabled={createPort.isPending || !newPortName.trim()}
-                              className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50"
-                            >
-                              <Plus className="h-3 w-3" />
-                              Add
-                            </button>
-                            <button
-                              onClick={() => setAddPortFor(null)}
-                              className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
-                            >
-                              Cancel
-                            </button>
                           </div>
                         )}
                       </div>
@@ -461,47 +621,54 @@ function DeviceCatalogSection() {
 
                 {/* Add model form */}
                 {addModelFor === mfg.id ? (
-                  <div className="ml-4 flex items-end gap-2 pt-1">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground">Model name</label>
-                      <input
-                        value={newModelName}
-                        onChange={(e) => setNewModelName(e.target.value)}
-                        placeholder="e.g. RB5009"
-                        className="w-32 rounded border border-input bg-background px-2 py-1 text-xs"
-                        autoFocus
-                      />
+                  <div className="ml-4 rounded border border-dashed border-border p-2 space-y-2">
+                    <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Add model</p>
+                    <div className="flex items-end gap-2">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground">Model name</label>
+                        <input
+                          value={newModelName}
+                          onChange={(e) => setNewModelName(e.target.value)}
+                          placeholder="e.g. RB5009"
+                          className="w-32 rounded border border-input bg-background px-2 py-1 text-xs"
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground">Device type</label>
+                        <select
+                          value={newModelType}
+                          onChange={(e) => setNewModelType(e.target.value)}
+                          className="w-32 rounded border border-input bg-background px-2 py-1 text-xs"
+                        >
+                          <option value="">— select —</option>
+                          {deviceTypes?.map((dt) => (
+                            <option key={dt.id} value={dt.value}>{dt.label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (!newModelName.trim()) return
+                          createModel.mutate({
+                            manufacturer: mfg.id,
+                            name: newModelName.trim(),
+                            device_type: newModelType.trim(),
+                          })
+                        }}
+                        disabled={createModel.isPending || !newModelName.trim()}
+                        className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground disabled:opacity-50"
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add
+                      </button>
+                      <button
+                        onClick={() => setAddModelFor(null)}
+                        className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
+                      >
+                        Cancel
+                      </button>
                     </div>
-                    <div>
-                      <label className="text-[10px] text-muted-foreground">Device type (optional)</label>
-                      <input
-                        value={newModelType}
-                        onChange={(e) => setNewModelType(e.target.value)}
-                        placeholder="e.g. router"
-                        className="w-24 rounded border border-input bg-background px-2 py-1 text-xs"
-                      />
-                    </div>
-                    <button
-                      onClick={() => {
-                        if (!newModelName.trim()) return
-                        createModel.mutate({
-                          manufacturer: mfg.id,
-                          name: newModelName.trim(),
-                          device_type: newModelType.trim(),
-                        })
-                      }}
-                      disabled={createModel.isPending || !newModelName.trim()}
-                      className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground disabled:opacity-50"
-                    >
-                      <Plus className="h-3 w-3" />
-                      Add
-                    </button>
-                    <button
-                      onClick={() => setAddModelFor(null)}
-                      className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
-                    >
-                      Cancel
-                    </button>
                   </div>
                 ) : (
                   <button
@@ -556,9 +723,6 @@ function DeviceCatalogSection() {
     </div>
   )
 }
-
-
-// ─── Device Types Section ─────────────────────────────────────────────────────
 
 function DeviceTypesSection() {
   const queryClient = useQueryClient()
