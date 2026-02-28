@@ -3,7 +3,7 @@ import { useUIStore } from '@/stores/ui.store'
 import { useSelectionStore } from '@/stores/selection.store'
 import { useTopologyStore } from '@/stores/topology.store'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi } from '@/api/endpoints'
+import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi, hostPortsApi } from '@/api/endpoints'
 import { CopyableIP } from '@/components/shared/CopyableIP'
 import { cn } from '@/lib/utils'
 import { SubnetUtilBar } from '@/components/shared/SubnetUtilBar'
@@ -430,9 +430,14 @@ function HostDetail({ hostId }: { hostId: number }) {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [connectPortOpen, setConnectPortOpen] = useState(false)
+  const [connectingPortId, setConnectingPortId] = useState<number | null>(null)
   const [editConnectionId, setEditConnectionId] = useState<number | null>(null)
+  const [addPortOpen, setAddPortOpen] = useState(false)
+  const [newPortName, setNewPortName] = useState('')
+  const [newPortType, setNewPortType] = useState<'rj45' | 'sfp' | 'sfp+' | 'qsfp' | 'usb' | 'serial'>('rj45')
   const getLabel = useDeviceTypeLabel()
   const selectedProjectId = useSelectionStore((s) => s.selectedProjectId)
+  const setSelectedHost = useSelectionStore((s) => s.setSelectedHost)
 
   const { data: host } = useQuery({
     queryKey: ['host', hostId],
@@ -467,13 +472,40 @@ function HostDetail({ hostId }: { hostId: number }) {
     },
   })
 
+  const addPortMutation = useMutation({
+    mutationFn: () => hostPortsApi.create({
+      host: hostId,
+      name: newPortName.trim(),
+      port_type: newPortType,
+    } as Parameters<typeof hostPortsApi.create>[0]),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['host', hostId] })
+      queryClient.invalidateQueries({ queryKey: ['host-ports'] })
+      setNewPortName('')
+      setAddPortOpen(false)
+      toast.success('Port added')
+    },
+    onError: () => toast.error('Failed to add port'),
+  })
+
   if (!host) return <DetailLoading />
 
   const ports = host.ports ?? []
   const editConnection = connections?.find((c) => c.id === editConnectionId)
+  const connectingPort = ports.find((p) => p.id === connectingPortId)
+
+  const PORT_TYPE_OPTIONS = [
+    { value: 'rj45', label: 'RJ45' },
+    { value: 'sfp', label: 'SFP' },
+    { value: 'sfp+', label: 'SFP+' },
+    { value: 'qsfp', label: 'QSFP' },
+    { value: 'usb', label: 'USB' },
+    { value: 'serial', label: 'Serial' },
+  ] as const
 
   return (
     <div className="p-3 space-y-3">
+      {/* Header — IP clickable to navigate */}
       <div className="flex items-center gap-2">
         <Monitor className="h-4 w-4 text-primary shrink-0" />
         <div className="min-w-0">
@@ -484,6 +516,7 @@ function HostDetail({ hostId }: { hostId: number }) {
         </div>
       </div>
 
+      {/* Basic info */}
       <dl className="space-y-1.5 text-xs">
         {host.mac_address && <DetailRow label="MAC" value={host.mac_address} mono />}
         <DetailRow label="Device Type" value={getLabel(host.device_type)} />
@@ -491,61 +524,134 @@ function HostDetail({ hostId }: { hostId: number }) {
         {host.description && <DetailRow label="Description" value={host.description} />}
       </dl>
 
-      {/* Ports section */}
-      {ports.length > 0 && (
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <h4 className="text-xs font-semibold uppercase text-muted-foreground">
-              Ports ({ports.length})
-            </h4>
+      {/* ── Ports section ── */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+            Ports ({ports.length})
+          </h4>
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setConnectPortOpen(true)}
               className="text-xs text-primary hover:underline flex items-center gap-1"
+              title="Connect two ports"
             >
-              <Cable className="h-3 w-3" /> Connect
+              <ArrowLeftRight className="h-3 w-3" /> Connect
+            </button>
+            <button
+              onClick={() => setAddPortOpen((v) => !v)}
+              className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+              title="Add custom port"
+            >
+              <Plus className="h-3 w-3" /> Add
             </button>
           </div>
+        </div>
+
+        {/* Add port inline form */}
+        {addPortOpen && (
+          <div className="mb-2 rounded border border-dashed border-border p-2 space-y-1.5 bg-muted/20">
+            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">New port</p>
+            <div className="flex items-center gap-1.5">
+              <input
+                value={newPortName}
+                onChange={(e) => setNewPortName(e.target.value)}
+                placeholder="e.g. ether1"
+                autoFocus
+                className="flex-1 rounded border border-input bg-background px-2 py-0.5 text-xs font-mono"
+              />
+              <select
+                value={newPortType}
+                onChange={(e) => setNewPortType(e.target.value as typeof newPortType)}
+                className="rounded border border-input bg-background px-1.5 py-0.5 text-xs"
+              >
+                {PORT_TYPE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-1.5">
+              <button
+                onClick={() => addPortMutation.mutate()}
+                disabled={!newPortName.trim() || addPortMutation.isPending}
+                className="rounded bg-primary px-2.5 py-0.5 text-xs text-primary-foreground disabled:opacity-50"
+              >
+                {addPortMutation.isPending ? 'Adding...' : 'Add Port'}
+              </button>
+              <button
+                onClick={() => { setAddPortOpen(false); setNewPortName('') }}
+                className="rounded border border-border px-2.5 py-0.5 text-xs hover:bg-accent"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {ports.length === 0 ? (
+          <p className="text-[10px] text-muted-foreground italic">
+            No ports. Add one above or assign a device model with port templates.
+          </p>
+        ) : (
           <div className="space-y-1">
             {ports.map((port) => (
               <div
                 key={port.id}
-                className="flex items-center gap-2 rounded border border-border px-2 py-1 text-xs"
+                className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs group"
               >
-                <span className="font-mono font-medium flex-1">{port.name}</span>
-                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground">
+                <span className="font-mono font-medium w-24 shrink-0 truncate" title={port.name}>
+                  {port.name}
+                </span>
+                <span className="text-[10px] bg-muted px-1 py-0.5 rounded text-muted-foreground shrink-0">
                   {port.port_type.toUpperCase()}
                 </span>
+
                 {port.connected_to ? (
-                  <div className="flex items-center gap-1 min-w-0">
+                  <div className="flex items-center gap-1 min-w-0 flex-1">
                     <Cable className="h-3 w-3 text-green-500 shrink-0" />
-                    <span className="text-[10px] text-green-600 dark:text-green-400 truncate max-w-[80px]" title={`${port.connected_to.host_name} / ${port.connected_to.port_name}`}>
-                      {port.connected_to.host_name}
-                    </span>
+                    <button
+                      onClick={() => {
+                        const conn = connections?.find(c => c.id === port.connected_to!.connection_id)
+                        if (conn) setEditConnectionId(conn.id)
+                      }}
+                      className="text-[10px] text-green-600 dark:text-green-400 truncate hover:underline"
+                      title={`${port.connected_to.host_name} / ${port.connected_to.port_name}`}
+                    >
+                      {port.connected_to.host_name} / {port.connected_to.port_name}
+                    </button>
                     <button
                       onClick={() => {
                         if (window.confirm('Remove this port connection?')) {
                           deleteConnectionMutation.mutate(port.connected_to!.connection_id)
                         }
                       }}
-                      className="p-0.5 rounded hover:bg-destructive/20 shrink-0"
+                      className="ml-auto p-0.5 rounded hover:bg-destructive/20 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                       title="Remove connection"
                     >
                       <X className="h-2.5 w-2.5 text-muted-foreground" />
                     </button>
                   </div>
                 ) : (
-                  <span className="text-[10px] text-muted-foreground">free</span>
+                  <div className="flex items-center gap-1 flex-1">
+                    <span className="text-[10px] text-muted-foreground">free</span>
+                    <button
+                      onClick={() => { setConnectingPortId(port.id); setConnectPortOpen(true) }}
+                      className="ml-auto text-[10px] text-primary opacity-0 group-hover:opacity-100 transition-opacity hover:underline shrink-0"
+                    >
+                      connect
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Connections summary (cross-host view) */}
+      {/* ── Connections summary ── */}
       {connections && connections.length > 0 && (
         <div>
-          <h4 className="text-xs font-semibold uppercase text-muted-foreground mb-1.5">
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide mb-1.5">
             Connections ({connections.length})
           </h4>
           <div className="space-y-1">
@@ -555,17 +661,33 @@ function HostDetail({ hostId }: { hostId: number }) {
               const otherHost = isA ? conn.host_b_name : conn.host_a_name
               const otherPort = isA ? conn.port_b_name : conn.port_a_name
               return (
-                <div key={conn.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground rounded border border-border px-2 py-1">
-                  <span className="font-mono font-medium text-foreground">{myPort}</span>
+                <div key={conn.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground rounded border border-border px-2 py-1 group">
+                  <span className="font-mono font-medium text-foreground shrink-0">{myPort}</span>
                   <ArrowLeftRight className="h-3 w-3 shrink-0" />
-                  <span className="truncate">{otherHost} / {otherPort}</span>
                   <button
-                    onClick={() => setEditConnectionId(conn.id)}
-                    className="ml-auto p-0.5 rounded hover:bg-accent shrink-0"
-                    title="Edit"
+                    onClick={() => setSelectedHost(isA ? conn.host_b_id : conn.host_a_id)}
+                    className="truncate hover:text-primary hover:underline"
+                    title={`Go to ${otherHost}`}
                   >
-                    <Pencil className="h-3 w-3" />
+                    {otherHost}
                   </button>
+                  <span className="font-mono shrink-0">/{otherPort}</span>
+                  <div className="ml-auto flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => setEditConnectionId(conn.id)}
+                      className="p-0.5 rounded hover:bg-accent shrink-0"
+                      title="Edit"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => { if (window.confirm('Delete connection?')) deleteConnectionMutation.mutate(conn.id) }}
+                      className="p-0.5 rounded hover:bg-destructive/20 shrink-0"
+                      title="Delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
                 </div>
               )
             })}
@@ -584,11 +706,16 @@ function HostDetail({ hostId }: { hostId: number }) {
         <HostForm subnetId={host.subnet} host={host} onClose={() => setEditOpen(false)} />
       </Dialog>
 
-      <Dialog open={connectPortOpen} onOpenChange={setConnectPortOpen} title="Connect Port">
+      <Dialog
+        open={connectPortOpen}
+        onOpenChange={(open) => { setConnectPortOpen(open); if (!open) setConnectingPortId(null) }}
+        title="Connect Port"
+      >
         <PortConnectionForm
           projectId={selectedProjectId!}
           defaultHostId={hostId}
-          onClose={() => setConnectPortOpen(false)}
+          defaultPortId={connectingPortId ?? undefined}
+          onClose={() => { setConnectPortOpen(false); setConnectingPortId(null) }}
         />
       </Dialog>
 
@@ -608,6 +735,7 @@ function HostDetail({ hostId }: { hostId: number }) {
     </div>
   )
 }
+
 
 // ── DHCP Pool Detail ──────────────────────────────────────────
 

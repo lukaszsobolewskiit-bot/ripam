@@ -1,7 +1,9 @@
-import { useCallback, useMemo, useState, useRef, useEffect } from 'react'
+import { useCallback, useMemo, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi } from '@/api/endpoints'
+import { useSelectionStore } from '@/stores/selection.store'
+import { useUIStore } from '@/stores/ui.store'
 import { CopyableIP } from '@/components/shared/CopyableIP'
 import { SubnetUtilBar } from '@/components/shared/SubnetUtilBar'
 import { Dialog } from '@/components/ui/Dialog'
@@ -20,7 +22,7 @@ import {
 import type { Site, VLAN, Subnet, Host, Tunnel, DHCPPool, PortConnection } from '@/types'
 import { useDeviceTypeLabel } from '@/hooks/useDeviceTypeLabel'
 
-// ─── Host IP cell with hover tooltip ──────────────────────────
+// ─── Host IP cell with hover tooltip + click to open detail panel ────────────
 
 function HostIPCell({ host, connections }: {
   host: Host
@@ -30,63 +32,87 @@ function HostIPCell({ host, connections }: {
   const [pos, setPos] = useState({ x: 0, y: 0 })
   const getLabel = useDeviceTypeLabel()
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const setSelectedHost = useSelectionStore((s) => s.setSelectedHost)
+  const toggleDetailPanel = useUIStore((s) => s.toggleDetailPanel)
+  const detailPanelOpen = useUIStore((s) => s.detailPanelOpen)
   const bare = host.ip_address.split('/')[0]
 
   const show = (e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    setPos({ x: rect.right + 8, y: rect.top })
-    timerRef.current = setTimeout(() => setVisible(true), 300)
+    setPos({ x: Math.min(rect.right + 8, window.innerWidth - 300), y: rect.top })
+    timerRef.current = setTimeout(() => setVisible(true), 400)
   }
   const hide = () => {
     if (timerRef.current) clearTimeout(timerRef.current)
     setVisible(false)
   }
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    hide()
+    setSelectedHost(host.id)
+    if (!detailPanelOpen) toggleDetailPanel()
+  }
 
   return (
     <span className="relative inline-flex items-center">
-      <span
+      <button
         onMouseEnter={show}
         onMouseLeave={hide}
-        className="font-mono text-sm cursor-default"
+        onClick={handleClick}
+        className="font-mono text-sm hover:text-primary hover:underline transition-colors cursor-pointer"
+        title="Click to open details"
       >
         {bare}
-      </span>
+      </button>
       {visible && (
         <div
-          className="fixed z-50 min-w-[200px] max-w-[280px] rounded-lg border border-border bg-popover shadow-lg text-xs p-3 space-y-1.5"
-          style={{ left: pos.x, top: pos.y }}
+          className="fixed z-50 min-w-[220px] max-w-[300px] rounded-lg border border-border bg-popover shadow-xl text-xs p-3 space-y-2"
+          style={{ left: pos.x, top: Math.min(pos.y, window.innerHeight - 320) }}
           onMouseEnter={() => setVisible(true)}
           onMouseLeave={hide}
         >
-          <div className="font-semibold text-sm">{host.hostname || bare}</div>
-          <div className="font-mono text-muted-foreground">{bare}</div>
-          {host.device_type && (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Type:</span>
-              <span className="bg-muted px-1.5 py-0.5 rounded">{getLabel(host.device_type)}</span>
-            </div>
-          )}
-          {host.device_model_name && (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">Model:</span>
-              <span>{host.device_model_name}</span>
-            </div>
-          )}
-          {host.mac_address && (
-            <div className="flex items-center gap-2">
-              <span className="text-muted-foreground">MAC:</span>
-              <span className="font-mono">{host.mac_address}</span>
-            </div>
-          )}
-          {host.description && (
-            <div className="text-muted-foreground italic">{host.description}</div>
-          )}
+          {/* Header */}
+          <div className="border-b border-border pb-1.5">
+            <div className="font-semibold text-sm">{host.hostname || bare}</div>
+            <div className="font-mono text-muted-foreground">{bare}</div>
+          </div>
+
+          {/* Details */}
+          <div className="space-y-1">
+            {host.device_type && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-12 shrink-0">Type</span>
+                <span className="bg-muted px-1.5 py-0.5 rounded">{getLabel(host.device_type)}</span>
+              </div>
+            )}
+            {host.device_model_name && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-12 shrink-0">Model</span>
+                <span className="truncate">{host.device_model_name}</span>
+              </div>
+            )}
+            {host.mac_address && (
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground w-12 shrink-0">MAC</span>
+                <span className="font-mono">{host.mac_address}</span>
+              </div>
+            )}
+            {host.description && (
+              <div className="text-muted-foreground italic">{host.description}</div>
+            )}
+          </div>
+
+          {/* Ports */}
           {host.ports && host.ports.length > 0 && (
             <div>
-              <div className="text-muted-foreground mb-0.5">Ports ({host.ports.length}):</div>
+              <div className="text-muted-foreground font-medium mb-1">Ports ({host.ports.length})</div>
               <div className="flex flex-wrap gap-1">
                 {host.ports.map((p) => (
-                  <span key={p.id} className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${p.connected_to ? 'bg-green-500/15 text-green-600 dark:text-green-400' : 'bg-muted text-muted-foreground'}`}>
+                  <span key={p.id} className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                    p.connected_to
+                      ? 'bg-green-500/15 text-green-600 dark:text-green-400'
+                      : 'bg-muted text-muted-foreground'
+                  }`}>
                     {p.name}
                     {p.connected_to && ` → ${p.connected_to.host_name}`}
                   </span>
@@ -94,21 +120,28 @@ function HostIPCell({ host, connections }: {
               </div>
             </div>
           )}
+
+          {/* Connections */}
           {connections.length > 0 && (
             <div>
-              <div className="text-muted-foreground mb-0.5">Connections:</div>
+              <div className="text-muted-foreground font-medium mb-1">Connections</div>
               {connections.map((c) => {
                 const isA = c.host_a_id === host.id
                 return (
                   <div key={c.id} className="flex items-center gap-1 text-[10px]">
-                    <span className="font-mono text-green-600">{isA ? c.port_a_name : c.port_b_name}</span>
+                    <span className="font-mono text-green-600 dark:text-green-400">{isA ? c.port_a_name : c.port_b_name}</span>
                     <span className="text-muted-foreground">→</span>
-                    <span className="truncate">{isA ? c.host_b_name : c.host_a_name}/{isA ? c.port_b_name : c.port_a_name}</span>
+                    <span className="truncate">{isA ? c.host_b_name : c.host_a_name} / {isA ? c.port_b_name : c.port_a_name}</span>
                   </div>
                 )
               })}
             </div>
           )}
+
+          {/* Hint */}
+          <div className="text-[10px] text-muted-foreground border-t border-border pt-1.5">
+            Click to open full details →
+          </div>
         </div>
       )}
     </span>
@@ -659,6 +692,7 @@ function NetworkHierarchy({ projectId }: { projectId: number }) {
         <Dialog open onOpenChange={closeDialog} title={dialog.mode === 'edit' ? 'Edit Connection' : 'Add Connection'}>
           <PortConnectionForm
             projectId={projectId}
+            defaultHostId={dialog.mode === 'add' ? dialog.parentId : undefined}
             connection={dialog.mode === 'edit' ? (dialog.entity as PortConnection) : undefined}
             onClose={closeDialog}
           />
@@ -788,6 +822,9 @@ function SubnetRow({
             </td>
             <td className="px-2 md:px-3 py-1.5">
               <div className="flex justify-end gap-0.5">
+                <button onClick={() => setDialog({ type: 'connection', mode: 'add', parentId: host.id })} className="p-1 rounded hover:bg-accent" title="Add port connection">
+                  <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
                 <button onClick={() => setDialog({ type: 'host', mode: 'edit', entity: host })} className="p-1 rounded hover:bg-accent" title="Edit host">
                   <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
@@ -883,6 +920,9 @@ function SubnetRow({
                   </td>
                   <td className="px-2 md:px-3 py-1.5">
                     <div className="flex justify-end gap-0.5">
+                      <button onClick={() => setDialog({ type: 'connection', mode: 'add', parentId: host.id })} className="p-1 rounded hover:bg-accent" title="Add port connection">
+                        <ArrowLeftRight className="h-3.5 w-3.5 text-muted-foreground" />
+                      </button>
                       <button onClick={() => setDialog({ type: 'host', mode: 'edit', entity: host })} className="p-1 rounded hover:bg-accent" title="Edit host">
                         <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
