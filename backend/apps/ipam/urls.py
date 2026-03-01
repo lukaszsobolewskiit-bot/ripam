@@ -21,3 +21,4 @@ urlpatterns = [
 ]
 router.register(r"host-notes", views.HostNoteViewSet, basename="hostnote")
 router.register(r"host-files", views.HostFileViewSet, basename="hostfile")
+router.register(r"site-files", views.SiteFileViewSet, basename="sitefile")

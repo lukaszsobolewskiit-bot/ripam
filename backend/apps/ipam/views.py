@@ -11,13 +11,13 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
 from .filters import HostFilter, SubnetFilter, TunnelFilter, VLANFilter, DHCPPoolFilter
-from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection, HostNote, HostFile
+from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection, HostNote, HostFile, SiteFile
 from .permissions import IsAdmin, ProjectPermission
 from .serializers import (
     HostSerializer, SubnetSerializer, TunnelSerializer, VLANSerializer,
     DHCPPoolSerializer, DeviceTypeSerializer,
     ManufacturerSerializer, DeviceModelSerializer, PortTemplateSerializer, HostPortSerializer,
-    PortConnectionSerializer, HostNoteSerializer, HostFileSerializer,
+    PortConnectionSerializer, HostNoteSerializer, HostFileSerializer, SiteFileSerializer,
 )
 
 
@@ -495,3 +495,18 @@ class HostFileViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save()
 
+class SiteFileViewSet(viewsets.ModelViewSet):
+    serializer_class = SiteFileSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+
+    def get_queryset(self):
+        qs = SiteFile.objects.all()
+        site = self.request.query_params.get("site")
+        if site:
+            qs = qs.filter(site_id=site)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save()

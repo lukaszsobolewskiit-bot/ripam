@@ -162,6 +162,22 @@ export const hostNotesApi = {
     apiClient.delete(`/host-notes/${id}/`),
 }
 
+export const siteFilesApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<SiteFile[]>('/site-files/', { params }),
+  upload: (siteId: number, file: File, name?: string) => {
+    const fd = new FormData()
+    fd.append('site', String(siteId))
+    fd.append('file', file)
+    fd.append('name', name || file.name)
+    return apiClient.post<SiteFile>('/site-files/', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
+  delete: (id: number) =>
+    apiClient.delete(`/site-files/${id}/`),
+}
+
 export const hostFilesApi = {
   list: (params?: Record<string, string>) =>
     apiClient.get<HostFile[]>('/host-files/', { params }),

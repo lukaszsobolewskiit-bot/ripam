@@ -13,3 +13,4 @@ __all__ = ["VLAN", "Subnet", "Host", "Tunnel", "DHCPPool", "DeviceType",
 
 from .host_note import HostNote
 from .host_file import HostFile
+from .site_file import SiteFile

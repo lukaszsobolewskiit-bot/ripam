@@ -132,6 +132,16 @@ export interface HostPort {
   } | null
 }
 
+export interface SiteFile {
+  id: number
+  site: number
+  name: string
+  file: string
+  size: number
+  url: string
+  created_at: string
+}
+
 export interface HostNote {
   id: number
   host: number

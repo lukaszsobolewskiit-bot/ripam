@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useUIStore } from '@/stores/ui.store'
 import { useSelectionStore } from '@/stores/selection.store'
 import { useTopologyStore } from '@/stores/topology.store'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi, hostPortsApi } from '@/api/endpoints'
+import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi, hostPortsApi, siteFilesApi } from '@/api/endpoints'
 import { CopyableIP } from '@/components/shared/CopyableIP'
 import { cn } from '@/lib/utils'
 import { SubnetUtilBar } from '@/components/shared/SubnetUtilBar'
@@ -17,11 +17,12 @@ import { TunnelForm } from '@/components/data/forms/TunnelForm'
 import { PortConnectionForm } from '@/components/data/forms/PortConnectionForm'
 import { HostNotesFiles } from '@/components/layout/HostNotesFiles'
 import { toast } from 'sonner'
-import type { Host } from '@/types'
+import type { Host, SiteFile } from '@/types'
 import { useDeviceTypeLabel } from '@/hooks/useDeviceTypeLabel'
 import {
   X, Pencil, Trash2, Plus,
   MapPin, Network, Server, Monitor, Cable, Layers, ArrowLeftRight,
+  Upload, Download, File, FileText, StickyNote,
 } from 'lucide-react'
 
 export function DetailPanel({ className, style }: { className?: string; style?: React.CSSProperties }) {
@@ -97,10 +98,17 @@ export function DetailPanel({ className, style }: { className?: string; style?: 
 function SiteDetail({ siteId, projectId }: { siteId: number; projectId: number }) {
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const { data: site } = useQuery({
     queryKey: ['site', projectId, siteId],
     queryFn: () => sitesApi.get(projectId, siteId),
+    select: (res) => res.data,
+  })
+
+  const { data: files } = useQuery({
+    queryKey: ['site-files', siteId],
+    queryFn: () => siteFilesApi.list({ site: String(siteId) }),
     select: (res) => res.data,
   })
 
@@ -113,6 +121,29 @@ function SiteDetail({ siteId, projectId }: { siteId: number; projectId: number }
       toast.success('Site deleted')
     },
   })
+
+  const uploadFile = useMutation({
+    mutationFn: (file: File) => siteFilesApi.upload(siteId, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-files', siteId] })
+      toast.success('File uploaded')
+    },
+    onError: () => toast.error('Failed to upload file'),
+  })
+
+  const deleteFile = useMutation({
+    mutationFn: (id: number) => siteFilesApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['site-files', siteId] })
+      toast.success('File deleted')
+    },
+  })
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  }
 
   if (!site) return <DetailLoading />
 
@@ -131,6 +162,71 @@ function SiteDetail({ siteId, projectId }: { siteId: number; projectId: number }
         <DetailRow label="VLANs" value={String(site.vlan_count)} />
         <DetailRow label="Hosts" value={String(site.host_count)} />
       </dl>
+
+      {/* ── Files ── */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide flex items-center gap-1.5">
+            <File className="h-3 w-3" /> Files ({files?.length ?? 0})
+          </h4>
+        </div>
+
+        <div className="space-y-1">
+          {files?.map((file: SiteFile) => (
+            <div key={file.id} className="flex items-center gap-2 rounded border border-border px-2 py-1.5 text-xs group hover:bg-accent/20 transition-colors">
+              <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium truncate" title={file.name}>{file.name}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {formatSize(file.size)} · {new Date(file.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                {file.url && (
+                  <a
+                    href={file.url}
+                    download={file.name}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-0.5 rounded hover:bg-accent"
+                    title="Download"
+                  >
+                    <Download className="h-3 w-3" />
+                  </a>
+                )}
+                <button
+                  onClick={() => { if (window.confirm(`Delete "${file.name}"?`)) deleteFile.mutate(file.id) }}
+                  className="p-0.5 rounded hover:bg-destructive/20"
+                >
+                  <Trash2 className="h-3 w-3 text-destructive" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Upload button */}
+        <div className="mt-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) uploadFile.mutate(file)
+              if (fileInputRef.current) fileInputRef.current.value = ''
+            }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadFile.isPending}
+            className="flex items-center gap-1.5 rounded border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:border-primary transition-colors w-full justify-center"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            {uploadFile.isPending ? 'Uploading...' : 'Upload File'}
+          </button>
+        </div>
+      </div>
 
       <DetailActions
         onEdit={() => setEditOpen(true)}

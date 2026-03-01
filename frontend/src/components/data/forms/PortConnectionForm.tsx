@@ -45,23 +45,25 @@ export function PortConnectionForm({
   })
 
   // Ports for host A — always fresh
-  const { data: portsA, isLoading: loadingA, refetch: refetchA } = useQuery({
+  const { data: portsA, isLoading: loadingA } = useQuery({
     queryKey: ['host-ports-conn', hostAId],
     queryFn: () => hostPortsApi.list({ host: hostAId }),
     select: (res) => res.data,
     enabled: !!hostAId,
     staleTime: 0,
     gcTime: 0,
+    refetchOnMount: 'always' as const,
   })
 
   // Ports for host B — always fresh
-  const { data: portsB, isLoading: loadingB, refetch: refetchB } = useQuery({
+  const { data: portsB, isLoading: loadingB } = useQuery({
     queryKey: ['host-ports-conn', hostBId],
     queryFn: () => hostPortsApi.list({ host: hostBId }),
     select: (res) => res.data,
     enabled: !!hostBId,
     staleTime: 0,
     gcTime: 0,
+    refetchOnMount: 'always' as const,
   })
 
   // Auto-copy ports if host has model but no ports yet

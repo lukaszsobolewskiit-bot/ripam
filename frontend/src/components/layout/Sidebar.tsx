@@ -155,7 +155,6 @@ function ProjectTreeItem({
   const navigate = useNavigate()
   const [addSiteOpen, setAddSiteOpen] = useState(false)
   const [addTunnelOpen, setAddTunnelOpen] = useState(false)
-  const [addConnectionOpen, setAddConnectionOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const expanded = useSelectionStore((s) => s.expandedProjectIds.has(project.id))
   const toggleExpanded = useSelectionStore((s) => s.toggleExpandedProject)
@@ -183,16 +182,8 @@ function ProjectTreeItem({
     enabled: isActive || expanded,
   })
 
-  const { data: connectionsData } = useQuery({
-    queryKey: ['port-connections-all', project.id],
-    queryFn: () => portConnectionsApi.list(),
-    select: (res) => res.data,
-    enabled: isActive || expanded,
-  })
-
   const sites = sitesData ?? []
   const tunnels = tunnelsData ?? []
-  const connections = connectionsData ?? []
   const isExpanded = isActive && expanded
 
   const handleClick = () => {
@@ -234,7 +225,6 @@ function ProjectTreeItem({
           ...(isActive ? [
             { label: 'Add Site', icon: <MapPin className="h-3 w-3" />, onClick: () => setAddSiteOpen(true) },
             { label: 'Add Tunnel', icon: <Cable className="h-3 w-3" />, onClick: () => setAddTunnelOpen(true) },
-            { label: 'Add Connection', icon: <ArrowLeftRight className="h-3 w-3" />, onClick: () => setAddConnectionOpen(true) },
           ] : []),
           { label: 'Edit', icon: <Pencil className="h-3 w-3" />, onClick: () => setEditOpen(true) },
           { label: 'Delete', icon: <Trash2 className="h-3 w-3" />, variant: 'destructive' as const, onClick: confirmDelete },
@@ -260,19 +250,7 @@ function ProjectTreeItem({
             <TunnelTreeItem key={tunnel.id} tunnel={tunnel} projectId={project.id} />
           ))}
 
-          <div className="group flex items-center px-1.5 pt-1">
-            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              Port Connections{connections.length > 0 && ` (${connections.length})`}
-            </span>
-            <div className="ml-auto">
-              <DropdownMenu items={[
-                { label: 'Add Connection', icon: <ArrowLeftRight className="h-3 w-3" />, onClick: () => setAddConnectionOpen(true) },
-              ]} />
-            </div>
-          </div>
-          {connections.map((conn) => (
-            <PortConnectionTreeItem key={conn.id} connection={conn} projectId={project.id} />
-          ))}
+
         </div>
       )}
 
@@ -282,10 +260,6 @@ function ProjectTreeItem({
 
       <Dialog open={addTunnelOpen} onOpenChange={setAddTunnelOpen} title="Add Tunnel">
         <TunnelForm projectId={project.id} onClose={() => setAddTunnelOpen(false)} />
-      </Dialog>
-
-      <Dialog open={addConnectionOpen} onOpenChange={setAddConnectionOpen} title="Add Port Connection">
-        <PortConnectionForm projectId={project.id} onClose={() => setAddConnectionOpen(false)} />
       </Dialog>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen} title="Edit Project">
@@ -311,6 +285,19 @@ function SiteTreeItem({ site, projectId }: { site: Site; projectId: number }) {
   const [addVlanOpen, setAddVlanOpen] = useState(false)
   const [addStandaloneSubnetOpen, setAddStandaloneSubnetOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
+  const [addConnectionOpen, setAddConnectionOpen] = useState(false)
+
+  const { data: siteConnectionsData } = useQuery({
+    queryKey: ['port-connections-all', { site: site.id }],
+    queryFn: () => portConnectionsApi.list({ project: String(projectId) }),
+    select: (res) => res.data.filter((c) =>
+      // Show connections where at least one host has hosts in this site's subnets
+      // Since we can't filter by site on backend easily, filter by project for now
+      true
+    ),
+    enabled: expanded,
+  })
+  const siteConnections = siteConnectionsData ?? []
 
   const deleteMutation = useMutation({
     mutationFn: () => sitesApi.delete(projectId, site.id),
@@ -372,6 +359,7 @@ function SiteTreeItem({ site, projectId }: { site: Site; projectId: number }) {
         <DropdownMenu items={[
           { label: 'Add VLAN', icon: <Network className="h-3 w-3" />, onClick: () => setAddVlanOpen(true) },
           { label: 'Add Subnet', icon: <Server className="h-3 w-3" />, onClick: () => setAddStandaloneSubnetOpen(true) },
+          { label: 'Add Connection', icon: <ArrowLeftRight className="h-3 w-3" />, onClick: () => setAddConnectionOpen(true) },
           { label: 'Edit', icon: <Pencil className="h-3 w-3" />, onClick: () => setEditOpen(true) },
           { label: 'Delete', icon: <Trash2 className="h-3 w-3" />, variant: 'destructive' as const, onClick: () => {
             if (window.confirm(`Delete site "${site.name}"?`)) deleteMutation.mutate()
@@ -397,8 +385,27 @@ function SiteTreeItem({ site, projectId }: { site: Site; projectId: number }) {
           {standaloneSubnets?.map((subnet) => (
             <SubnetTreeItem key={subnet.id} subnet={subnet} />
           ))}
+
+          {/* Port Connections at site level */}
+          <div className="group flex items-center px-1.5 pt-1.5">
+            <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+              Port Connections{siteConnections.length > 0 && ` (${siteConnections.length})`}
+            </span>
+            <div className="ml-auto">
+              <DropdownMenu items={[
+                { label: 'Add Connection', icon: <ArrowLeftRight className="h-3 w-3" />, onClick: () => setAddConnectionOpen(true) },
+              ]} />
+            </div>
+          </div>
+          {siteConnections.map((conn) => (
+            <PortConnectionTreeItem key={conn.id} connection={conn} projectId={projectId} />
+          ))}
         </div>
       )}
+
+      <Dialog open={addConnectionOpen} onOpenChange={setAddConnectionOpen} title="Add Port Connection">
+        <PortConnectionForm projectId={projectId} onClose={() => setAddConnectionOpen(false)} />
+      </Dialog>
 
       <Dialog open={addVlanOpen} onOpenChange={setAddVlanOpen} title="Add VLAN">
         <VlanForm siteId={site.id} onClose={() => setAddVlanOpen(false)} />

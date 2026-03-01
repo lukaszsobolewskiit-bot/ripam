@@ -4,7 +4,7 @@ from rest_framework import serializers
 
 from apps.projects.models import Project, Site
 from apps.projects.serializers import SiteWanAddressSerializer
-from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection, HostNote, HostFile
+from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection, HostNote, HostFile, SiteFile
 from .validators import (
     check_ip_duplicate_in_project, check_ip_in_subnet, check_subnet_overlap,
     check_pool_range_in_subnet, check_pool_overlap, check_static_ip_not_in_pool, check_lease_ip_in_pool,
@@ -299,6 +299,30 @@ class TunnelSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"site_a": "Site A must belong to the tunnel's project."})
         return attrs
 
+
+
+# ─── SiteFile serializer ─────────────────────────────────────────────────────
+
+class SiteFileSerializer(serializers.ModelSerializer):
+    url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SiteFile
+        fields = ["id", "site", "name", "file", "size", "url", "created_at"]
+        read_only_fields = ["id", "size", "url", "created_at"]
+
+    def get_url(self, obj):
+        request = self.context.get("request")
+        if request and obj.file:
+            return request.build_absolute_uri(obj.file.url)
+        return obj.file.url if obj.file else None
+
+    def create(self, validated_data):
+        file_obj = validated_data.get("file")
+        if file_obj:
+            validated_data["size"] = file_obj.size
+            validated_data["name"] = validated_data.get("name") or file_obj.name
+        return super().create(validated_data)
 
 
 # ─── HostNote / HostFile serializers ─────────────────────────────────────────
