@@ -5,14 +5,15 @@ import { TopologyCanvas } from '@/components/topology/TopologyCanvas'
 import { GeoMap } from '@/components/geo/GeoMap'
 import { ProjectTableView } from '@/components/data/tables/ProjectTableView'
 import { PortConnectionsTopology } from '@/components/topology/PortConnectionsTopology'
+import { PatchPanelView } from '@/components/patchpanel/PatchPanelView'
 
 import { useEffect } from 'react'
 import { useSelectionStore } from '@/stores/selection.store'
 
 function parseView(wildcard: string | undefined) {
   if (!wildcard) return undefined
-  const view = wildcard.split('/')[0] as 'topology' | 'geo' | 'table' | 'connections'
-  if (view === 'topology' || view === 'geo' || view === 'table' || view === 'connections') return view
+  const view = wildcard.split('/')[0] as 'topology' | 'geo' | 'table' | 'connections' | 'patches'
+  if (view === 'topology' || view === 'geo' || view === 'table' || view === 'connections' || view === 'patches') return view
   return undefined
 }
 
@@ -43,6 +44,7 @@ export function ProjectPage() {
       else if (e.key === '2') navigate(`/projects/${id}/topology`, { replace: true })
       else if (e.key === '3') navigate(`/projects/${id}/geo`, { replace: true })
       else if (e.key === '4') navigate(`/projects/${id}/connections`, { replace: true })
+      else if (e.key === '5') navigate(`/projects/${id}/patches`, { replace: true })
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
@@ -76,6 +78,7 @@ export function ProjectPage() {
             [
               { key: 'topology', label: 'Topology', kbd: '2' },
               { key: 'connections', label: 'Connections', kbd: '4' },
+              { key: 'patches', label: 'Patches', kbd: '5' },
               { key: 'geo', label: 'Geo', kbd: '3' },
               { key: 'table', label: 'Table', kbd: '1' },
             ] as const
@@ -104,6 +107,7 @@ export function ProjectPage() {
         {view === 'geo' && <GeoMap projectId={id} />}
         {view === 'table' && <ProjectTableView projectId={id} />}
         {view === 'connections' && <PortConnectionsTopology projectId={id} />}
+        {view === 'patches' && <PatchPanelView projectId={id} />}
       </div>
     </div>
   )

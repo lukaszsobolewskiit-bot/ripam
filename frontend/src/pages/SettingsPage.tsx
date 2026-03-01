@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi } from '@/api/endpoints'
+import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi, patchPanelsApi, patchPanelConnectionsApi } from '@/api/endpoints'
 import { extractApiError } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Download, Upload, AlertTriangle, Trash2, Plus, Pencil, ChevronDown, ChevronRight, Package } from 'lucide-react'
-import type { DeviceTypeOption, Manufacturer, DeviceModel, PortTemplate, PortType } from '@/types'
+import { Download, Upload, AlertTriangle, Trash2, Plus, Pencil, ChevronDown, ChevronRight, Package, Layers } from 'lucide-react'
+import type { DeviceTypeOption, Manufacturer, DeviceModel, PortTemplate, PortType, PatchPanel, PatchPanelPort } from '@/types'
 
 const PORT_TYPE_OPTIONS: { value: PortType; label: string }[] = [
   { value: 'rj45', label: 'RJ45' },
@@ -16,7 +16,7 @@ const PORT_TYPE_OPTIONS: { value: PortType; label: string }[] = [
 ]
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'backup'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'patch' | 'backup'>('general')
   const [replaceAll, setReplaceAll] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -74,7 +74,7 @@ export function SettingsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {(['general', 'catalog', 'backup'] as const).map((tab) => (
+        {(['general', 'catalog', 'patch', 'backup'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -84,7 +84,7 @@ export function SettingsPage() {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab === 'catalog' ? 'Device Catalog' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'catalog' ? 'Device Catalog' : tab === 'patch' ? 'Patch Panels' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>
@@ -95,6 +95,10 @@ export function SettingsPage() {
 
       {activeTab === 'catalog' && (
         <DeviceCatalogSection />
+      )}
+
+      {activeTab === 'patch' && (
+        <PatchPanelSection />
       )}
 
       {activeTab === 'backup' && (
@@ -1002,5 +1006,228 @@ function DeviceTypesSection() {
         </button>
       </form>
     </section>
+  )
+}
+
+// ─── Patch Panel Section ──────────────────────────────────────────────────────
+
+const MEDIA_TYPE_OPTIONS = [
+  { value: 'copper',    label: 'Copper (RJ45)' },
+  { value: 'fiber_lc',  label: 'Fiber LC' },
+  { value: 'fiber_sc',  label: 'Fiber SC' },
+  { value: 'fiber_st',  label: 'Fiber ST' },
+  { value: 'fiber_mtp', label: 'Fiber MTP/MPO' },
+]
+
+const MEDIA_COLORS: Record<string, string> = {
+  copper: '#3b82f6', fiber_lc: '#f59e0b', fiber_sc: '#f59e0b',
+  fiber_st: '#8b5cf6', fiber_mtp: '#ec4899',
+}
+
+function PatchPanelSection() {
+  const queryClient = useQueryClient()
+  const [expandedPanel, setExpandedPanel] = useState<number | null>(null)
+  const [addPanelFor, setAddPanelFor] = useState<string | null>(null) // site id or 'none'
+  const [editPanelId, setEditPanelId] = useState<number | null>(null)
+
+  // Form state
+  const [newName, setNewName] = useState('')
+  const [newMedia, setNewMedia] = useState('copper')
+  const [newPortCount, setNewPortCount] = useState(24)
+  const [newLocation, setNewLocation] = useState('')
+  const [newSite, setNewSite] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editMedia, setEditMedia] = useState('copper')
+  const [editLocation, setEditLocation] = useState('')
+
+  const { data: panels } = useQuery({
+    queryKey: ['patch-panels-settings'],
+    queryFn: () => patchPanelsApi.list(),
+    select: (res) => res.data,
+  })
+
+  const { data: sites } = useQuery({
+    queryKey: ['all-sites-settings'],
+    queryFn: async () => {
+      // Get all projects then all sites — a bit heavy but avoids new endpoint
+      const res = await fetch('/api/v1/ipam/patch-panels/')
+      return [] as { id: number; name: string }[]
+    },
+    select: () => [] as { id: number; name: string }[],
+  })
+
+  const createPanel = useMutation({
+    mutationFn: (data: Partial<PatchPanel>) => patchPanelsApi.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patch-panels-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['patch-panels'] })
+      setAddPanelFor(null)
+      setNewName(''); setNewMedia('copper'); setNewPortCount(24); setNewLocation(''); setNewSite('')
+      toast.success('Patch panel added')
+    },
+    onError: () => toast.error('Failed to create patch panel'),
+  })
+
+  const updatePanel = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Partial<PatchPanel> }) => patchPanelsApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patch-panels-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['patch-panels'] })
+      setEditPanelId(null)
+      toast.success('Patch panel updated')
+    },
+  })
+
+  const deletePanel = useMutation({
+    mutationFn: (id: number) => patchPanelsApi.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patch-panels-settings'] })
+      queryClient.invalidateQueries({ queryKey: ['patch-panels'] })
+      toast.success('Patch panel deleted')
+    },
+    onError: (err: unknown) => toast.error(extractApiError(err, 'Cannot delete')),
+  })
+
+  const panelList = panels ?? []
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Layers className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold">Patch Panels</h2>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Manage physical patch panels for copper and fiber cabling. Assign panels to sites and connect device ports through them.
+      </p>
+
+      {/* Add panel form */}
+      {addPanelFor !== null ? (
+        <div className="rounded-lg border border-dashed border-border p-4 space-y-3 bg-muted/10">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">New Patch Panel</p>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground block mb-0.5">Name *</label>
+              <input value={newName} onChange={e => setNewName(e.target.value)}
+                placeholder="e.g. PP-01" autoFocus
+                className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground block mb-0.5">Media type *</label>
+              <select value={newMedia} onChange={e => setNewMedia(e.target.value)}
+                className="w-full rounded border border-input bg-background px-2 py-1 text-xs">
+                {MEDIA_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground block mb-0.5">Ports</label>
+              <input type="number" min={1} max={96} value={newPortCount} onChange={e => setNewPortCount(Number(e.target.value))}
+                className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground block mb-0.5">Location (optional)</label>
+              <input value={newLocation} onChange={e => setNewLocation(e.target.value)}
+                placeholder="e.g. Rack A, U3"
+                className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => createPanel.mutate({ name: newName.trim(), media_type: newMedia as PatchPanel['media_type'], port_count: newPortCount, location: newLocation.trim(), site: newSite ? Number(newSite) : undefined })}
+              disabled={!newName.trim() || createPanel.isPending}
+              className="flex items-center gap-1 rounded bg-primary px-3 py-1 text-xs text-primary-foreground disabled:opacity-50">
+              <Plus className="h-3 w-3" /> Add Panel
+            </button>
+            <button onClick={() => setAddPanelFor(null)}
+              className="rounded border border-border px-3 py-1 text-xs hover:bg-accent">
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAddPanelFor('new')}
+          className="flex items-center gap-1.5 rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary transition-colors">
+          <Plus className="h-3.5 w-3.5" /> Add Patch Panel
+        </button>
+      )}
+
+      {/* Panel list */}
+      <div className="space-y-2">
+        {panelList.length === 0 && (
+          <p className="text-xs text-muted-foreground italic py-2">No patch panels defined yet.</p>
+        )}
+        {panelList.map(panel => {
+          const color = MEDIA_COLORS[panel.media_type] ?? '#6b7280'
+          const label = MEDIA_TYPE_OPTIONS.find(o => o.value === panel.media_type)?.label ?? panel.media_type
+          const usedCount = panel.ports.filter(p => p.device_port_info).length
+
+          return (
+            <div key={panel.id} className="rounded-md border border-border overflow-hidden">
+              {editPanelId === panel.id ? (
+                <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-muted/20 border-b border-border">
+                  <input value={editName} onChange={e => setEditName(e.target.value)}
+                    className="w-32 rounded border border-input bg-background px-2 py-0.5 text-xs" />
+                  <select value={editMedia} onChange={e => setEditMedia(e.target.value)}
+                    className="rounded border border-input bg-background px-2 py-0.5 text-xs">
+                    {MEDIA_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                  <input value={editLocation} onChange={e => setEditLocation(e.target.value)}
+                    placeholder="Location"
+                    className="w-28 rounded border border-input bg-background px-2 py-0.5 text-xs" />
+                  <button onClick={() => updatePanel.mutate({ id: panel.id, data: { name: editName, media_type: editMedia as PatchPanel['media_type'], location: editLocation } })}
+                    disabled={updatePanel.isPending}
+                    className="rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50">Save</button>
+                  <button onClick={() => setEditPanelId(null)}
+                    className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent">Cancel</button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 bg-muted/10">
+                  <button onClick={() => setExpandedPanel(expandedPanel === panel.id ? null : panel.id)}
+                    className="flex items-center gap-2 flex-1 text-left min-w-0">
+                    {expandedPanel === panel.id
+                      ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                    <span className="w-6 h-3 rounded-sm shrink-0"
+                      style={{ backgroundColor: color + '44', border: `1.5px solid ${color}` }} />
+                    <span className="text-sm font-medium">{panel.name}</span>
+                    <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded shrink-0">{label}</span>
+                    {panel.location && <span className="text-[10px] text-muted-foreground">{panel.location}</span>}
+                    <span className="text-[10px] text-muted-foreground ml-auto">
+                      {panel.port_count}p · {usedCount} used
+                    </span>
+                  </button>
+                  <button onClick={() => { setEditPanelId(panel.id); setEditName(panel.name); setEditMedia(panel.media_type); setEditLocation(panel.location || '') }}
+                    className="p-0.5 rounded hover:bg-accent" title="Edit">
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                  <button onClick={() => { if (window.confirm(`Delete "${panel.name}"?`)) deletePanel.mutate(panel.id) }}
+                    className="p-0.5 rounded hover:bg-destructive/20" title="Delete">
+                    <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  </button>
+                </div>
+              )}
+
+              {expandedPanel === panel.id && (
+                <div className="px-4 pb-3 pt-2 bg-background">
+                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.min(panel.port_count, 24)}, minmax(0, 1fr))` }}>
+                    {panel.ports.slice(0, 24).map(port => {
+                      const occ = !!port.device_port_info
+                      return (
+                        <div key={port.id}
+                          className={`flex flex-col items-center gap-0.5 p-1 rounded border text-[8px] text-center ${occ ? 'border-border bg-muted/20' : 'border-dashed border-border/30'}`}
+                          title={occ ? `${port.device_port_info?.host_name} / ${port.device_port_info?.device_port_name}` : `Port ${port.port_number}`}>
+                          <span className="font-mono text-muted-foreground">{port.port_number}</span>
+                          <div className="w-5 h-3 rounded-sm" style={{ backgroundColor: occ ? color + '55' : '#6b728022', border: `1px solid ${occ ? color : '#6b728040'}` }} />
+                          {occ && <span className="font-medium truncate w-full text-center">{port.device_port_info?.host_name?.split('.')[0]}</span>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }

@@ -22,3 +22,6 @@ urlpatterns = [
 router.register(r"host-notes", views.HostNoteViewSet, basename="hostnote")
 router.register(r"host-files", views.HostFileViewSet, basename="hostfile")
 router.register(r"site-files", views.SiteFileViewSet, basename="sitefile")
+router.register(r"patch-panels", views.PatchPanelViewSet, basename="patchpanel")
+router.register(r"patch-panel-ports", views.PatchPanelPortViewSet, basename="patchpanelport")
+router.register(r"patch-panel-connections", views.PatchPanelConnectionViewSet, basename="patchpanelconnection")

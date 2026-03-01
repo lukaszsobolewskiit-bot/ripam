@@ -510,3 +510,85 @@ class SiteFileViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save()
+
+
+# ─── PatchPanel views ─────────────────────────────────────────────────────────
+
+from .models import PatchPanel, PatchPanelPort, PatchPanelConnection
+from .serializers import (PatchPanelSerializer, PatchPanelPortSerializer,
+                          PatchPanelConnectionSerializer)
+
+
+class PatchPanelViewSet(viewsets.ModelViewSet):
+    serializer_class = PatchPanelSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = PatchPanel.objects.prefetch_related(
+            'ports__connections__device_port__host',
+            'ports__connections__far_panel_port__panel',
+        )
+        site = self.request.query_params.get('site')
+        project = self.request.query_params.get('project')
+        if site:
+            qs = qs.filter(site_id=site)
+        if project:
+            qs = qs.filter(site__project_id=project)
+        return qs
+
+    def perform_create(self, serializer):
+        panel = serializer.save()
+        # Auto-create ports
+        PatchPanelPort.objects.bulk_create([
+            PatchPanelPort(panel=panel, port_number=i + 1)
+            for i in range(panel.port_count)
+        ])
+
+
+class PatchPanelPortViewSet(viewsets.ModelViewSet):
+    serializer_class = PatchPanelPortSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = PatchPanelPort.objects.select_related('panel').prefetch_related(
+            'connections__device_port__host',
+            'connections__far_panel_port__panel',
+        )
+        panel = self.request.query_params.get('panel')
+        if panel:
+            qs = qs.filter(panel_id=panel)
+        return qs
+
+
+class PatchPanelConnectionViewSet(viewsets.ModelViewSet):
+    serializer_class = PatchPanelConnectionSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = PatchPanelConnection.objects.select_related(
+            'device_port__host', 'panel_port__panel',
+            'far_panel_port__panel', 'project',
+        )
+        project = self.request.query_params.get('project')
+        panel = self.request.query_params.get('panel')
+        if project:
+            qs = qs.filter(project_id=project)
+        if panel:
+            qs = qs.filter(models.Q(panel_port__panel_id=panel) |
+                           models.Q(far_panel_port__panel_id=panel))
+        return qs
+
+    def perform_create(self, serializer):
+        if not serializer.validated_data.get('project'):
+            device_port = serializer.validated_data.get('device_port')
+            if device_port:
+                try:
+                    project = device_port.host.subnet.project
+                    serializer.save(project=project)
+                    return
+                except Exception:
+                    pass
+        serializer.save()

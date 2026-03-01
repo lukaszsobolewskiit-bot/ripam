@@ -750,6 +750,11 @@ function HostDetail({ hostId }: { hostId: number }) {
                             >
                               {port.connected_to.host_name} / {port.connected_to.port_name}
                             </button>
+                            {port.patch_connection && (
+                              <span className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-400 px-1 py-0.5 rounded shrink-0" title={`via ${port.patch_connection.panel_name} port ${port.patch_connection.port_number}`}>
+                                ↑ patch
+                              </span>
+                            )}
                             <button
                               onClick={() => {
                                 if (window.confirm('Remove connection?')) {
@@ -763,7 +768,13 @@ function HostDetail({ hostId }: { hostId: number }) {
                           </div>
                         ) : (
                           <div className="flex items-center gap-1 flex-1">
-                            <span className="text-[10px] text-muted-foreground">free</span>
+                            {port.patch_connection ? (
+                              <span className="text-[9px] bg-amber-500/20 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded" title={`Patched via ${port.patch_connection.panel_name}:${port.patch_connection.port_number}`}>
+                                {port.patch_connection.panel_name}:{port.patch_connection.port_number}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">free</span>
+                            )}
                             <button
                               onClick={() => { setConnectingPortId(port.id); setConnectPortOpen(true) }}
                               className="ml-auto text-[10px] text-primary opacity-0 group-hover:opacity-100 transition-opacity hover:underline shrink-0"

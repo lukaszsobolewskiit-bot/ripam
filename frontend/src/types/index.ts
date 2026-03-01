@@ -130,6 +130,12 @@ export interface HostPort {
     host_id: number
     host_name: string
   } | null
+  patch_connection: {
+    connection_id: number
+    panel_port_id: number
+    panel_name: string
+    port_number: number
+  } | null
 }
 
 export interface SiteFile {
@@ -158,6 +164,55 @@ export interface HostFile {
   size: number
   url: string
   created_at: string
+}
+
+
+export interface PatchPanelPort {
+  id: number
+  panel: number
+  port_number: number
+  label: string
+  label_display: string
+  device_port_info: {
+    connection_id: number
+    device_port_id?: number
+    device_port_name?: string
+    host_id?: number
+    host_name?: string
+    far_panel_port_id?: number
+    far_panel_port_number?: number
+    far_panel_name?: string
+  } | null
+}
+
+export interface PatchPanel {
+  id: number
+  site: number | null
+  site_name: string | null
+  name: string
+  media_type: 'copper' | 'fiber_lc' | 'fiber_sc' | 'fiber_st' | 'fiber_mtp'
+  port_count: number
+  location: string
+  description: string
+  created_at: string
+  ports: PatchPanelPort[]
+}
+
+export interface PatchPanelConnection {
+  id: number
+  project?: number
+  device_port: number | null
+  panel_port: number
+  far_panel_port: number | null
+  description: string
+  created_at: string
+  panel_name: string
+  panel_port_number: number
+  device_port_name: string | null
+  host_id: number | null
+  host_name: string | null
+  far_panel_name: string | null
+  far_panel_port_number: number | null
 }
 
 export interface PortConnection {

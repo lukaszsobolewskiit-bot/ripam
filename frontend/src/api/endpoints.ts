@@ -297,3 +297,35 @@ export const backupApi = {
     )
   },
 }
+
+export const patchPanelsApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<PatchPanel[]>('/patch-panels/', { params }),
+  get: (id: number) =>
+    apiClient.get<PatchPanel>(`/patch-panels/${id}/`),
+  create: (data: Partial<PatchPanel>) =>
+    apiClient.post<PatchPanel>('/patch-panels/', data),
+  update: (id: number, data: Partial<PatchPanel>) =>
+    apiClient.patch<PatchPanel>(`/patch-panels/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/patch-panels/${id}/`),
+}
+
+export const patchPanelPortsApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<PatchPanelPort[]>('/patch-panel-ports/', { params }),
+  update: (id: number, data: Partial<PatchPanelPort>) =>
+    apiClient.patch<PatchPanelPort>(`/patch-panel-ports/${id}/`, data),
+}
+
+export const patchPanelConnectionsApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<PatchPanelConnection[]>('/patch-panel-connections/', { params }),
+  create: (data: Partial<PatchPanelConnection>) =>
+    apiClient.post<PatchPanelConnection>('/patch-panel-connections/', data),
+  update: (id: number, data: Partial<PatchPanelConnection>) =>
+    apiClient.patch<PatchPanelConnection>(`/patch-panel-connections/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/patch-panel-connections/${id}/`),
+}
+

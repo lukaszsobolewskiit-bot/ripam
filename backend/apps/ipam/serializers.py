@@ -56,10 +56,11 @@ class ManufacturerSerializer(serializers.ModelSerializer):
 
 class HostPortSerializer(serializers.ModelSerializer):
     connected_to = serializers.SerializerMethodField()
+    patch_connection = serializers.SerializerMethodField()
 
     class Meta:
         model = HostPort
-        fields = ["id", "host", "name", "port_type", "description", "position", "connected_to"]
+        fields = ["id", "host", "name", "port_type", "description", "position", "connected_to", "patch_connection"]
         read_only_fields = ["id"]
 
     def get_connected_to(self, obj):
@@ -74,6 +75,17 @@ class HostPortSerializer(serializers.ModelSerializer):
             "port_name": other_port.name,
             "host_id": other_host.id,
             "host_name": other_host.hostname or str(other_host.ip_address),
+        }
+
+    def get_patch_connection(self, obj):
+        pc = getattr(obj, 'patch_connection', None)
+        if not pc:
+            return None
+        return {
+            "connection_id": pc.id,
+            "panel_port_id": pc.panel_port_id,
+            "panel_name": pc.panel_port.panel.name,
+            "port_number": pc.panel_port.port_number,
         }
 
 
@@ -434,3 +446,81 @@ class ProjectTopologySerializer(serializers.Serializer):
     sites = SiteTopologySerializer(many=True, read_only=True)
     tunnels = TunnelTopologySerializer(many=True, read_only=True)
     standalone_subnets = SubnetTopologySerializer(many=True, read_only=True)
+
+# ─── PatchPanel serializers ───────────────────────────────────────────────────
+
+from .models import PatchPanel, PatchPanelPort, PatchPanelConnection
+
+
+class PatchPanelPortSerializer(serializers.ModelSerializer):
+    label_display = serializers.SerializerMethodField()
+    device_port_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PatchPanelPort
+        fields = ['id', 'panel', 'port_number', 'label', 'label_display', 'device_port_info']
+        read_only_fields = ['id', 'label_display', 'device_port_info']
+
+    def get_label_display(self, obj):
+        return obj.label or f'Port {obj.port_number}'
+
+    def get_device_port_info(self, obj):
+        conn = obj.connections.select_related(
+            'device_port__host', 'far_panel_port__panel'
+        ).first()
+        if not conn:
+            return None
+        result = {'connection_id': conn.id}
+        if conn.device_port:
+            host = conn.device_port.host
+            result['device_port_id'] = conn.device_port.id
+            result['device_port_name'] = conn.device_port.name
+            result['host_id'] = host.id
+            result['host_name'] = host.hostname or str(host.ip_address)
+        if conn.far_panel_port:
+            result['far_panel_port_id'] = conn.far_panel_port.id
+            result['far_panel_port_number'] = conn.far_panel_port.port_number
+            result['far_panel_name'] = conn.far_panel_port.panel.name
+        return result
+
+
+class PatchPanelSerializer(serializers.ModelSerializer):
+    ports = PatchPanelPortSerializer(many=True, read_only=True)
+    site_name = serializers.CharField(source='site.name', read_only=True)
+
+    class Meta:
+        model = PatchPanel
+        fields = ['id', 'site', 'site_name', 'name', 'media_type', 'port_count',
+                  'location', 'description', 'created_at', 'ports']
+        read_only_fields = ['id', 'created_at', 'site_name']
+
+
+class PatchPanelConnectionSerializer(serializers.ModelSerializer):
+    panel_name = serializers.CharField(source='panel_port.panel.name', read_only=True)
+    panel_port_number = serializers.IntegerField(source='panel_port.port_number', read_only=True)
+    device_port_name = serializers.CharField(source='device_port.name', read_only=True)
+    host_id = serializers.IntegerField(source='device_port.host.id', read_only=True)
+    host_name = serializers.SerializerMethodField()
+    far_panel_name = serializers.SerializerMethodField()
+    far_panel_port_number = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PatchPanelConnection
+        fields = ['id', 'project', 'device_port', 'panel_port', 'far_panel_port',
+                  'description', 'created_at',
+                  'panel_name', 'panel_port_number',
+                  'device_port_name', 'host_id', 'host_name',
+                  'far_panel_name', 'far_panel_port_number']
+        read_only_fields = ['id', 'created_at']
+
+    def get_host_name(self, obj):
+        if obj.device_port:
+            h = obj.device_port.host
+            return h.hostname or str(h.ip_address)
+        return None
+
+    def get_far_panel_name(self, obj):
+        return obj.far_panel_port.panel.name if obj.far_panel_port else None
+
+    def get_far_panel_port_number(self, obj):
+        return obj.far_panel_port.port_number if obj.far_panel_port else None
