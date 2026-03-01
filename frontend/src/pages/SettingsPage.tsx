@@ -222,6 +222,27 @@ function DeviceCatalogSection() {
   const [portRows, setPortRows] = useState<{ name: string; port_type: PortType }[]>([
     { name: '', port_type: 'rj45' },
   ])
+  // Serial port generation
+  const [serialPattern, setSerialPattern] = useState('')
+  const [serialType, setSerialType] = useState<PortType>('rj45')
+  const [serialMode, setSerialMode] = useState<'manual' | 'serial'>('manual')
+
+  // Parse serial pattern like "ether1-8", "sfp1-4", "port01-24"
+  const parseSerialPattern = (pattern: string): string[] => {
+    const m = pattern.match(/^([a-zA-Z_./-]+?)(\d+)-(\d+)$/)
+    if (!m) return []
+    const [, prefix, startStr, endStr] = m
+    const start = parseInt(startStr, 10)
+    const end = parseInt(endStr, 10)
+    if (isNaN(start) || isNaN(end) || end < start || end - start > 255) return []
+    const padLen = startStr.length > 1 && startStr.startsWith('0') ? startStr.length : 0
+    return Array.from({ length: end - start + 1 }, (_, i) => {
+      const n = start + i
+      return prefix + (padLen > 0 ? String(n).padStart(padLen, '0') : String(n))
+    })
+  }
+
+  const serialPreview = parseSerialPattern(serialPattern)
 
   // Device types for select
   const { data: deviceTypes } = useQuery({
@@ -505,6 +526,8 @@ function DeviceCatalogSection() {
                             setAddPortFor(addPortFor === model.id ? null : model.id)
                             setExpandedModel(model.id)
                             setPortRows([{ name: '', port_type: 'rj45' }])
+                            setSerialPattern('')
+                            setSerialMode('manual')
                           }}
                           className="p-0.5 rounded hover:bg-accent"
                           title="Add ports"
@@ -558,60 +581,156 @@ function DeviceCatalogSection() {
                           <p className="text-[10px] text-muted-foreground py-1">No ports defined yet.</p>
                         )}
 
-                        {/* Bulk add ports form */}
+                        {/* Add ports form — manual or serial */}
                         {addPortFor === model.id && (
-                          <div className="border-t border-border/50 pt-2 space-y-1.5">
-                            <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">Add ports</p>
-                            {portRows.map((row, i) => (
-                              <div key={i} className="flex items-center gap-1.5">
-                                <input
-                                  value={row.name}
-                                  onChange={(e) => updatePortRow(i, 'name', e.target.value)}
-                                  placeholder={`e.g. ether${i + 1}`}
-                                  className="w-28 rounded border border-input bg-background px-2 py-0.5 text-xs font-mono"
-                                  autoFocus={i === 0}
-                                />
-                                <select
-                                  value={row.port_type}
-                                  onChange={(e) => updatePortRow(i, 'port_type', e.target.value)}
-                                  className="rounded border border-input bg-background px-2 py-0.5 text-xs"
-                                >
-                                  {PORT_TYPE_OPTIONS.map((o) => (
-                                    <option key={o.value} value={o.value}>{o.label}</option>
-                                  ))}
-                                </select>
-                                {portRows.length > 1 && (
-                                  <button
-                                    onClick={() => removePortRow(i)}
-                                    className="p-0.5 rounded hover:bg-destructive/20"
-                                  >
-                                    <Trash2 className="h-3 w-3 text-muted-foreground" />
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                            <div className="flex items-center gap-2 pt-1">
+                          <div className="border-t border-border/50 pt-2 space-y-2">
+                            {/* Mode toggle */}
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide mr-1">Add ports</span>
                               <button
-                                onClick={addPortRow}
-                                className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-                              >
-                                <Plus className="h-3 w-3" /> Add row
-                              </button>
+                                onClick={() => setSerialMode('manual')}
+                                className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${serialMode === 'manual' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                              >Manual</button>
                               <button
-                                onClick={() => handleAddPorts(model.id, model.port_templates?.length ?? 0)}
-                                disabled={createPort.isPending || portRows.every((r) => !r.name.trim())}
-                                className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50"
-                              >
-                                <Plus className="h-3 w-3" />
-                                Save ports
-                              </button>
-                              <button
-                                onClick={() => { setAddPortFor(null); setPortRows([{ name: '', port_type: 'rj45' }]) }}
-                                className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
-                              >
-                                Cancel
-                              </button>
+                                onClick={() => setSerialMode('serial')}
+                                className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${serialMode === 'serial' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+                              >Serial / Range</button>
                             </div>
+
+                            {serialMode === 'manual' && (
+                              <>
+                                {portRows.map((row, i) => (
+                                  <div key={i} className="flex items-center gap-1.5">
+                                    <input
+                                      value={row.name}
+                                      onChange={(e) => updatePortRow(i, 'name', e.target.value)}
+                                      placeholder={`e.g. ether${i + 1}`}
+                                      className="w-28 rounded border border-input bg-background px-2 py-0.5 text-xs font-mono"
+                                      autoFocus={i === 0}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') { e.preventDefault(); addPortRow() }
+                                      }}
+                                    />
+                                    <select
+                                      value={row.port_type}
+                                      onChange={(e) => updatePortRow(i, 'port_type', e.target.value)}
+                                      className="rounded border border-input bg-background px-2 py-0.5 text-xs"
+                                    >
+                                      {PORT_TYPE_OPTIONS.map((o) => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                      ))}
+                                    </select>
+                                    {portRows.length > 1 && (
+                                      <button onClick={() => removePortRow(i)} className="p-0.5 rounded hover:bg-destructive/20">
+                                        <Trash2 className="h-3 w-3 text-muted-foreground" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                <div className="flex items-center gap-2 pt-0.5">
+                                  <button onClick={addPortRow} className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground">
+                                    <Plus className="h-3 w-3" /> Add row
+                                  </button>
+                                  <button
+                                    onClick={() => handleAddPorts(model.id, model.port_templates?.length ?? 0)}
+                                    disabled={createPort.isPending || portRows.every((r) => !r.name.trim())}
+                                    className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50"
+                                  >
+                                    <Plus className="h-3 w-3" /> Save ports
+                                  </button>
+                                  <button
+                                    onClick={() => { setAddPortFor(null); setPortRows([{ name: '', port_type: 'rj45' }]) }}
+                                    className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
+                                  >Cancel</button>
+                                </div>
+                              </>
+                            )}
+
+                            {serialMode === 'serial' && (
+                              <div className="space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <div className="flex-1">
+                                    <label className="text-[10px] text-muted-foreground block mb-0.5">Pattern <span className="text-muted-foreground/60">(e.g. ether1-8, sfp1-4, port01-24)</span></label>
+                                    <input
+                                      value={serialPattern}
+                                      onChange={(e) => setSerialPattern(e.target.value)}
+                                      placeholder="ether1-8"
+                                      autoFocus
+                                      className="w-full rounded border border-input bg-background px-2 py-1 text-xs font-mono"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[10px] text-muted-foreground block mb-0.5">Type</label>
+                                    <select
+                                      value={serialType}
+                                      onChange={(e) => setSerialType(e.target.value as PortType)}
+                                      className="rounded border border-input bg-background px-2 py-1 text-xs"
+                                    >
+                                      {PORT_TYPE_OPTIONS.map((o) => (
+                                        <option key={o.value} value={o.value}>{o.label}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
+                                {/* Preview */}
+                                {serialPreview.length > 0 && (
+                                  <div className="rounded border border-border bg-muted/20 p-2">
+                                    <p className="text-[10px] text-muted-foreground mb-1.5">
+                                      Preview — {serialPreview.length} ports ({serialType.toUpperCase()}):
+                                    </p>
+                                    <div className="flex flex-wrap gap-1">
+                                      {serialPreview.slice(0, 32).map((name) => (
+                                        <span key={name} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono">{name}</span>
+                                      ))}
+                                      {serialPreview.length > 32 && (
+                                        <span className="text-[10px] text-muted-foreground italic">+{serialPreview.length - 32} more</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {serialPattern && serialPreview.length === 0 && (
+                                  <p className="text-[10px] text-amber-600 dark:text-amber-400">
+                                    Invalid pattern. Use format like <code className="font-mono">ether1-8</code> or <code className="font-mono">port01-24</code>
+                                  </p>
+                                )}
+
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    onClick={async () => {
+                                      if (!serialPreview.length) return
+                                      const startPos = model.port_templates?.length ?? 0
+                                      try {
+                                        for (let i = 0; i < serialPreview.length; i++) {
+                                          await createPort.mutateAsync({
+                                            device_model: model.id,
+                                            name: serialPreview[i],
+                                            port_type: serialType,
+                                            position: startPos + i,
+                                          })
+                                        }
+                                        queryClient.invalidateQueries({ queryKey: ['manufacturers'] })
+                                        setAddPortFor(null)
+                                        setSerialPattern('')
+                                        toast.success(`${serialPreview.length} ports added`)
+                                      } catch (err: unknown) {
+                                        toast.error(extractApiError(err, 'Failed to add ports'))
+                                      }
+                                    }}
+                                    disabled={!serialPreview.length || createPort.isPending}
+                                    className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50"
+                                  >
+                                    <Plus className="h-3 w-3" />
+                                    {createPort.isPending ? 'Adding...' : `Add ${serialPreview.length || 0} ports`}
+                                  </button>
+                                  <button
+                                    onClick={() => { setAddPortFor(null); setSerialPattern('') }}
+                                    className="rounded border border-border px-2 py-0.5 text-xs hover:bg-accent"
+                                  >Cancel</button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
