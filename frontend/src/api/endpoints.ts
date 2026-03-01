@@ -314,8 +314,12 @@ export const patchPanelsApi = {
 export const patchPanelPortsApi = {
   list: (params?: Record<string, string>) =>
     apiClient.get<PatchPanelPort[]>('/patch-panel-ports/', { params }),
+  create: (data: Partial<PatchPanelPort>) =>
+    apiClient.post<PatchPanelPort>('/patch-panel-ports/', data),
   update: (id: number, data: Partial<PatchPanelPort>) =>
     apiClient.patch<PatchPanelPort>(`/patch-panel-ports/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/patch-panel-ports/${id}/`),
 }
 
 export const patchPanelConnectionsApi = {
@@ -351,5 +355,27 @@ export const rackUnitsApi = {
     apiClient.patch<RackUnit>(`/rack-units/${id}/`, data),
   delete: (id: number) =>
     apiClient.delete(`/rack-units/${id}/`),
+}
+
+export const siteNotesApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<SiteNote[]>('/site-notes/', { params }),
+  create: (data: { site: number; content: string }) =>
+    apiClient.post<SiteNote>('/site-notes/', data),
+  update: (id: number, data: { content: string }) =>
+    apiClient.patch<SiteNote>(`/site-notes/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/site-notes/${id}/`),
+}
+
+export const projectNotesApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<ProjectNote[]>('/project-notes/', { params }),
+  create: (data: { project: number; content: string }) =>
+    apiClient.post<ProjectNote>('/project-notes/', data),
+  update: (id: number, data: { content: string }) =>
+    apiClient.patch<ProjectNote>(`/project-notes/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/project-notes/${id}/`),
 }
 

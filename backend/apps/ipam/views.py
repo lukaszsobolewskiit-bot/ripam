@@ -11,13 +11,22 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
 from .filters import HostFilter, SubnetFilter, TunnelFilter, VLANFilter, DHCPPoolFilter
-from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection, HostNote, HostFile, SiteFile
+from .models import (
+    VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel,
+    PortTemplate, HostPort, PortConnection, HostNote, HostFile, SiteFile,
+    PatchPanel, PatchPanelPort, PatchPanelConnection,
+    Rack, RackUnit,
+    SiteNote, ProjectNote,
+)
 from .permissions import IsAdmin, ProjectPermission
 from .serializers import (
     HostSerializer, SubnetSerializer, TunnelSerializer, VLANSerializer,
     DHCPPoolSerializer, DeviceTypeSerializer,
     ManufacturerSerializer, DeviceModelSerializer, PortTemplateSerializer, HostPortSerializer,
     PortConnectionSerializer, HostNoteSerializer, HostFileSerializer, SiteFileSerializer,
+    PatchPanelSerializer, PatchPanelPortSerializer, PatchPanelConnectionSerializer,
+    RackSerializer, RackUnitSerializer,
+    SiteNoteSerializer, ProjectNoteSerializer,
 )
 
 
@@ -514,9 +523,6 @@ class SiteFileViewSet(viewsets.ModelViewSet):
 
 # ─── PatchPanel views ─────────────────────────────────────────────────────────
 
-from .models import PatchPanel, PatchPanelPort, PatchPanelConnection
-from .serializers import (PatchPanelSerializer, PatchPanelPortSerializer,
-                          PatchPanelConnectionSerializer)
 
 
 class PatchPanelViewSet(viewsets.ModelViewSet):
@@ -596,8 +602,6 @@ class PatchPanelConnectionViewSet(viewsets.ModelViewSet):
 
 # ─── Rack views ───────────────────────────────────────────────────────────────
 
-from .models import Rack, RackUnit
-from .serializers import RackSerializer, RackUnitSerializer
 
 
 class RackViewSet(viewsets.ModelViewSet):
@@ -631,4 +635,34 @@ class RackUnitViewSet(viewsets.ModelViewSet):
         rack = self.request.query_params.get('rack')
         if rack:
             qs = qs.filter(rack_id=rack)
+        return qs
+
+
+# ─── Site / Project Note views ────────────────────────────────────────────────
+
+
+
+class SiteNoteViewSet(viewsets.ModelViewSet):
+    serializer_class = SiteNoteSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = SiteNote.objects.all()
+        site = self.request.query_params.get('site')
+        if site:
+            qs = qs.filter(site_id=site)
+        return qs
+
+
+class ProjectNoteViewSet(viewsets.ModelViewSet):
+    serializer_class = ProjectNoteSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = ProjectNote.objects.all()
+        project = self.request.query_params.get('project')
+        if project:
+            qs = qs.filter(project_id=project)
         return qs

@@ -15,10 +15,6 @@ router.register(r"device-models", views.DeviceModelViewSet, basename="devicemode
 router.register(r"port-templates", views.PortTemplateViewSet, basename="porttemplate")
 router.register(r"host-ports", views.HostPortViewSet, basename="hostport")
 router.register(r"port-connections", views.PortConnectionViewSet, basename="portconnection")
-
-urlpatterns = [
-    path("", include(router.urls)),
-]
 router.register(r"host-notes", views.HostNoteViewSet, basename="hostnote")
 router.register(r"host-files", views.HostFileViewSet, basename="hostfile")
 router.register(r"site-files", views.SiteFileViewSet, basename="sitefile")
@@ -27,3 +23,11 @@ router.register(r"patch-panel-ports", views.PatchPanelPortViewSet, basename="pat
 router.register(r"patch-panel-connections", views.PatchPanelConnectionViewSet, basename="patchpanelconnection")
 router.register(r"racks", views.RackViewSet, basename="rack")
 router.register(r"rack-units", views.RackUnitViewSet, basename="rackunit")
+
+# Notes on Sites and Projects
+router.register(r"site-notes", views.SiteNoteViewSet, basename="sitenote")
+router.register(r"project-notes", views.ProjectNoteViewSet, basename="projectnote")
+
+urlpatterns = [
+    path("", include(router.urls)),
+]

@@ -3,7 +3,8 @@ import { useUIStore } from '@/stores/ui.store'
 import { useSelectionStore } from '@/stores/selection.store'
 import { useTopologyStore } from '@/stores/topology.store'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi, hostPortsApi, siteFilesApi } from '@/api/endpoints'
+import { sitesApi, vlansApi, subnetsApi, hostsApi, tunnelsApi, dhcpPoolsApi, portConnectionsApi, hostPortsApi, siteFilesApi, siteNotesApi, projectNotesApi, projectsApi } from '@/api/endpoints'
+import { NotesWidget } from '@/components/shared/NotesWidget'
 import { CopyableIP } from '@/components/shared/CopyableIP'
 import { cn } from '@/lib/utils'
 import { SubnetUtilBar } from '@/components/shared/SubnetUtilBar'
@@ -83,6 +84,9 @@ export function DetailPanel({ className, style }: { className?: string; style?: 
       )}
       {activeView === 'dhcpPool' && selectedDhcpPoolId && (
         <DHCPPoolDetail poolId={selectedDhcpPoolId} />
+      )}
+      {activeView === 'project' && selectedProjectId && (
+        <ProjectDetail projectId={selectedProjectId} />
       )}
       {!activeView && (
         <div className="p-3 text-xs text-muted-foreground">
@@ -227,6 +231,16 @@ function SiteDetail({ siteId, projectId }: { siteId: number; projectId: number }
           </button>
         </div>
       </div>
+
+      {/* ── Notes ── */}
+      <NotesWidget
+        queryKey={['site-notes', siteId]}
+        fetchFn={() => siteNotesApi.list({ site: String(siteId) })}
+        createFn={(content) => siteNotesApi.create({ site: siteId, content })}
+        updateFn={(id, content) => siteNotesApi.update(id, { content })}
+        deleteFn={(id) => siteNotesApi.delete(id)}
+        label="Notes"
+      />
 
       <DetailActions
         onEdit={() => setEditOpen(true)}
@@ -1034,6 +1048,67 @@ function DetailActions({ onEdit, onDelete }: { onEdit: () => void; onDelete: () 
       >
         <Trash2 className="h-3 w-3" /> Delete
       </button>
+    </div>
+  )
+}
+
+
+// ── Project Detail ──────────────────────────────────────────────
+
+function ProjectDetail({ projectId }: { projectId: number }) {
+  const queryClient = useQueryClient()
+  const [editOpen, setEditOpen] = useState(false)
+
+  const { data: project } = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => projectsApi.get(projectId),
+    select: (res) => res.data,
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: () => projectsApi.delete(projectId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] })
+      useSelectionStore.getState().setSelectedProject(null)
+    },
+  })
+
+  if (!project) return <DetailLoading />
+
+  return (
+    <div className="p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <Network className="h-4 w-4 text-primary shrink-0" />
+        <span className="text-sm font-semibold">{project.name}</span>
+      </div>
+
+      <dl className="space-y-1.5 text-xs">
+        {project.supernet && <DetailRow label="Supernet" value={String(project.supernet)} mono />}
+        {project.description && <DetailRow label="Description" value={project.description} />}
+        <DetailRow label="Sites" value={String(project.site_count ?? 0)} />
+        {project.created_by_username && <DetailRow label="Created by" value={project.created_by_username} />}
+      </dl>
+
+      {/* ── Project Notes ── */}
+      <NotesWidget
+        queryKey={['project-notes', projectId]}
+        fetchFn={() => projectNotesApi.list({ project: String(projectId) })}
+        createFn={(content) => projectNotesApi.create({ project: projectId, content })}
+        updateFn={(id, content) => projectNotesApi.update(id, { content })}
+        deleteFn={(id) => projectNotesApi.delete(id)}
+        label="Notes"
+      />
+
+      <DetailActions
+        onEdit={() => setEditOpen(true)}
+        onDelete={() => {
+          if (window.confirm(`Delete project "${project.name}"?`)) deleteMutation.mutate()
+        }}
+      />
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen} title="Edit Project">
+        <ProjectForm project={project} onClose={() => setEditOpen(false)} />
+      </Dialog>
     </div>
   )
 }

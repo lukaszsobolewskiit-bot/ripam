@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi, patchPanelsApi, patchPanelConnectionsApi } from '@/api/endpoints'
+import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi, patchPanelsApi, patchPanelPortsApi, patchPanelConnectionsApi } from '@/api/endpoints'
 import { extractApiError } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Download, Upload, AlertTriangle, Trash2, Plus, Pencil, ChevronDown, ChevronRight, Package, Layers } from 'lucide-react'
@@ -1019,13 +1019,16 @@ const MEDIA_TYPE_OPTIONS: { value: string; label: string; group: string }[] = [
   { value: 'copper_coax', label: 'Copper — Coax (BNC/F)',group: 'Copper' },
   // Fiber SM
   { value: 'fiber_lc_sm', label: 'Fiber SM — LC',        group: 'Fiber SM' },
-  { value: 'fiber_sc_sm', label: 'Fiber SM — SC',        group: 'Fiber SM' },
+  { value: 'fiber_sc_sm',  label: 'Fiber SM — SC',        group: 'Fiber SM' },
+  { value: 'fiber_sc_apc', label: 'Fiber SM — SC/APC',    group: 'Fiber SM' },
+  { value: 'fiber_sc_upc', label: 'Fiber SM — SC/UPC',    group: 'Fiber SM' },
   { value: 'fiber_st_sm', label: 'Fiber SM — ST',        group: 'Fiber SM' },
   { value: 'fiber_fc_sm', label: 'Fiber SM — FC',        group: 'Fiber SM' },
   { value: 'fiber_e2000', label: 'Fiber SM — E2000',     group: 'Fiber SM' },
   { value: 'fiber_lsh',   label: 'Fiber SM — LSH/E2000', group: 'Fiber SM' },
   // Fiber MM
-  { value: 'fiber_lc_mm', label: 'Fiber MM — LC',        group: 'Fiber MM' },
+  { value: 'fiber_lc_mm',  label: 'Fiber MM — LC',        group: 'Fiber MM' },
+  { value: 'fiber_lc_apc', label: 'Fiber MM — LC/APC',    group: 'Fiber MM' },
   { value: 'fiber_sc_mm', label: 'Fiber MM — SC',        group: 'Fiber MM' },
   { value: 'fiber_st_mm', label: 'Fiber MM — ST',        group: 'Fiber MM' },
   { value: 'fiber_fc_mm', label: 'Fiber MM — FC',        group: 'Fiber MM' },
@@ -1040,6 +1043,7 @@ const MEDIA_TYPE_OPTIONS: { value: string; label: string; group: string }[] = [
   { value: 'displayport', label: 'DisplayPort',          group: 'Other' },
   { value: 'keystone',    label: 'Keystone',             group: 'Other' },
   { value: 'blank_1u',    label: 'Blank 1U',             group: 'Other' },
+  { value: 'mixed',       label: 'Mixed / Keystone',     group: 'Other' },
 ]
 
 const MEDIA_COLORS: Record<string, string> = {
@@ -1049,21 +1053,26 @@ const MEDIA_COLORS: Record<string, string> = {
   fiber_lc_mm: '#a855f7', fiber_sc_mm: '#c084fc', fiber_st_mm: '#d8b4fe', fiber_fc_mm: '#e9d5ff',
   fiber_mpo12: '#ec4899', fiber_mpo24: '#f472b6', fiber_mtp: '#fb7185',
   fiber_pretm: '#34d399',
+  fiber_sc_apc: '#10b981', fiber_sc_upc: '#34d399',
+  fiber_lc_apc: '#6ee7b7',
+  mixed: '#8b5cf6',
   hdmi: '#6b7280', displayport: '#9ca3af', keystone: '#d1d5db', blank_1u: '#e5e7eb',
 }
 
 function PatchPanelSection() {
   const queryClient = useQueryClient()
   const [expandedPanel, setExpandedPanel] = useState<number | null>(null)
-  const [addPanelFor, setAddPanelFor] = useState<string | null>(null) // site id or 'none'
+  const [addPanelFor, setAddPanelFor] = useState<string | null>(null)
   const [editPanelId, setEditPanelId] = useState<number | null>(null)
+  const [addingPortTo, setAddingPortTo] = useState<number | null>(null)
+  const [newPortLabel, setNewPortLabel] = useState('')
+  const [newPortNumber, setNewPortNumber] = useState<number>(1)
 
   // Form state
   const [newName, setNewName] = useState('')
   const [newMedia, setNewMedia] = useState('copper')
   const [newPortCount, setNewPortCount] = useState(24)
   const [newLocation, setNewLocation] = useState('')
-  const [newSite, setNewSite] = useState('')
   const [editName, setEditName] = useState('')
   const [editMedia, setEditMedia] = useState('copper')
   const [editLocation, setEditLocation] = useState('')
@@ -1074,23 +1083,13 @@ function PatchPanelSection() {
     select: (res) => res.data,
   })
 
-  const { data: sites } = useQuery({
-    queryKey: ['all-sites-settings'],
-    queryFn: async () => {
-      // Get all projects then all sites — a bit heavy but avoids new endpoint
-      const res = await fetch('/api/v1/ipam/patch-panels/')
-      return [] as { id: number; name: string }[]
-    },
-    select: () => [] as { id: number; name: string }[],
-  })
-
   const createPanel = useMutation({
     mutationFn: (data: Partial<PatchPanel>) => patchPanelsApi.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['patch-panels-settings'] })
       queryClient.invalidateQueries({ queryKey: ['patch-panels'] })
       setAddPanelFor(null)
-      setNewName(''); setNewMedia('copper'); setNewPortCount(24); setNewLocation(''); setNewSite('')
+      setNewName(''); setNewMedia('copper'); setNewPortCount(24); setNewLocation('')
       toast.success('Patch panel added')
     },
     onError: () => toast.error('Failed to create patch panel'),
@@ -1116,7 +1115,49 @@ function PatchPanelSection() {
     onError: (err: unknown) => toast.error(extractApiError(err, 'Cannot delete')),
   })
 
+  const addPort = useMutation({
+    mutationFn: ({ panelId, portNumber, label }: { panelId: number; portNumber: number; label: string }) =>
+      patchPanelPortsApi.create({ panel: panelId, port_number: portNumber, label }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patch-panels-settings'] })
+      setAddingPortTo(null)
+      setNewPortLabel('')
+      toast.success('Port added')
+    },
+    onError: (err: unknown) => toast.error(extractApiError(err, 'Cannot add port')),
+  })
+
+  const deletePort = useMutation({
+    mutationFn: (portId: number) => patchPanelPortsApi.delete(portId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patch-panels-settings'] })
+      toast.success('Port removed')
+    },
+  })
+
   const panelList = panels ?? []
+  const isMixed = (media: string) => media === 'mixed' || media === 'keystone'
+
+  const mediaBadge = (media: string) => {
+    const color = MEDIA_COLORS[media] ?? '#6b7280'
+    const label = MEDIA_TYPE_OPTIONS.find(o => o.value === media)?.label ?? media
+    return { color, label }
+  }
+
+  const renderMediaSelect = (value: string, onChange: (v: string) => void) => (
+    <select value={value} onChange={e => onChange(e.target.value)}
+      className="w-full rounded border border-input bg-background px-2 py-1 text-xs">
+      {Object.entries(
+        MEDIA_TYPE_OPTIONS.reduce((acc, o) => {
+          ;(acc[o.group] ??= []).push(o); return acc
+        }, {} as Record<string, typeof MEDIA_TYPE_OPTIONS>)
+      ).map(([group, opts]) => (
+        <optgroup key={group} label={group}>
+          {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </optgroup>
+      ))}
+    </select>
+  )
 
   return (
     <div className="space-y-4">
@@ -1125,7 +1166,7 @@ function PatchPanelSection() {
         <h2 className="text-sm font-semibold">Patch Panels</h2>
       </div>
       <p className="text-xs text-muted-foreground">
-        Manage physical patch panels for copper and fiber cabling. Assign panels to sites and connect device ports through them.
+        Manage physical patch panels. For Keystone / Mixed panels you can add ports individually with custom labels.
       </p>
 
       {/* Add panel form */}
@@ -1141,22 +1182,14 @@ function PatchPanelSection() {
             </div>
             <div>
               <label className="text-[10px] text-muted-foreground block mb-0.5">Media type *</label>
-              <select value={newMedia} onChange={e => setNewMedia(e.target.value)}
-                className="w-full rounded border border-input bg-background px-2 py-1 text-xs">
-                {Object.entries(
-                      MEDIA_TYPE_OPTIONS.reduce((acc, o) => {
-                        ;(acc[o.group] ??= []).push(o); return acc
-                      }, {} as Record<string, typeof MEDIA_TYPE_OPTIONS>)
-                    ).map(([group, opts]) => (
-                      <optgroup key={group} label={group}>
-                        {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </optgroup>
-                    ))}
-              </select>
+              {renderMediaSelect(newMedia, setNewMedia)}
             </div>
             <div>
-              <label className="text-[10px] text-muted-foreground block mb-0.5">Ports</label>
-              <input type="number" min={1} max={96} value={newPortCount} onChange={e => setNewPortCount(Number(e.target.value))}
+              <label className="text-[10px] text-muted-foreground block mb-0.5">
+                {isMixed(newMedia) ? 'Initial port count (optional)' : 'Port count'}
+              </label>
+              <input type="number" min={0} max={96} value={newPortCount}
+                onChange={e => setNewPortCount(Number(e.target.value))}
                 className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
             </div>
             <div>
@@ -1166,9 +1199,14 @@ function PatchPanelSection() {
                 className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
             </div>
           </div>
+          {isMixed(newMedia) && (
+            <p className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 rounded px-2 py-1">
+              Mixed/Keystone panel — you can add ports individually after creating the panel.
+            </p>
+          )}
           <div className="flex gap-2">
             <button
-              onClick={() => createPanel.mutate({ name: newName.trim(), media_type: newMedia as PatchPanel['media_type'], port_count: newPortCount, location: newLocation.trim(), site: newSite ? Number(newSite) : undefined })}
+              onClick={() => createPanel.mutate({ name: newName.trim(), media_type: newMedia as PatchPanel['media_type'], port_count: newPortCount, location: newLocation.trim() })}
               disabled={!newName.trim() || createPanel.isPending}
               className="flex items-center gap-1 rounded bg-primary px-3 py-1 text-xs text-primary-foreground disabled:opacity-50">
               <Plus className="h-3 w-3" /> Add Panel
@@ -1192,32 +1230,23 @@ function PatchPanelSection() {
           <p className="text-xs text-muted-foreground italic py-2">No patch panels defined yet.</p>
         )}
         {panelList.map(panel => {
-          const color = MEDIA_COLORS[panel.media_type] ?? '#6b7280'
-          const label = MEDIA_TYPE_OPTIONS.find(o => o.value === panel.media_type)?.label ?? panel.media_type
+          const { color, label } = mediaBadge(panel.media_type)
           const usedCount = panel.ports.filter(p => p.device_port_info).length
+          const isKeystone = isMixed(panel.media_type)
 
           return (
             <div key={panel.id} className="rounded-md border border-border overflow-hidden">
+              {/* Panel header */}
               {editPanelId === panel.id ? (
                 <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-muted/20 border-b border-border">
                   <input value={editName} onChange={e => setEditName(e.target.value)}
                     className="w-32 rounded border border-input bg-background px-2 py-0.5 text-xs" />
-                  <select value={editMedia} onChange={e => setEditMedia(e.target.value)}
-                    className="rounded border border-input bg-background px-2 py-0.5 text-xs">
-                    {Object.entries(
-                      MEDIA_TYPE_OPTIONS.reduce((acc, o) => {
-                        ;(acc[o.group] ??= []).push(o); return acc
-                      }, {} as Record<string, typeof MEDIA_TYPE_OPTIONS>)
-                    ).map(([group, opts]) => (
-                      <optgroup key={group} label={group}>
-                        {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </optgroup>
-                    ))}
-                  </select>
+                  <div className="w-40">{renderMediaSelect(editMedia, setEditMedia)}</div>
                   <input value={editLocation} onChange={e => setEditLocation(e.target.value)}
                     placeholder="Location"
                     className="w-28 rounded border border-input bg-background px-2 py-0.5 text-xs" />
-                  <button onClick={() => updatePanel.mutate({ id: panel.id, data: { name: editName, media_type: editMedia as PatchPanel['media_type'], location: editLocation } })}
+                  <button
+                    onClick={() => updatePanel.mutate({ id: panel.id, data: { name: editName, media_type: editMedia as PatchPanel['media_type'], location: editLocation } })}
                     disabled={updatePanel.isPending}
                     className="rounded bg-primary px-2 py-0.5 text-xs text-primary-foreground disabled:opacity-50">Save</button>
                   <button onClick={() => setEditPanelId(null)}
@@ -1239,33 +1268,140 @@ function PatchPanelSection() {
                       {panel.port_count}p · {usedCount} used
                     </span>
                   </button>
-                  <button onClick={() => { setEditPanelId(panel.id); setEditName(panel.name); setEditMedia(panel.media_type); setEditLocation(panel.location || '') }}
+                  <button
+                    onClick={() => { setEditPanelId(panel.id); setEditName(panel.name); setEditMedia(panel.media_type); setEditLocation(panel.location || '') }}
                     className="p-0.5 rounded hover:bg-accent" title="Edit">
                     <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
-                  <button onClick={() => { if (window.confirm(`Delete "${panel.name}"?`)) deletePanel.mutate(panel.id) }}
+                  <button
+                    onClick={() => { if (window.confirm(`Delete "${panel.name}"?`)) deletePanel.mutate(panel.id) }}
                     className="p-0.5 rounded hover:bg-destructive/20" title="Delete">
                     <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
                 </div>
               )}
 
+              {/* Expanded port view */}
               {expandedPanel === panel.id && (
-                <div className="px-4 pb-3 pt-2 bg-background">
-                  <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.min(panel.port_count, 24)}, minmax(0, 1fr))` }}>
-                    {panel.ports.slice(0, 24).map(port => {
-                      const occ = !!port.device_port_info
-                      return (
-                        <div key={port.id}
-                          className={`flex flex-col items-center gap-0.5 p-1 rounded border text-[8px] text-center ${occ ? 'border-border bg-muted/20' : 'border-dashed border-border/30'}`}
-                          title={occ ? `${port.device_port_info?.host_name} / ${port.device_port_info?.device_port_name}` : `Port ${port.port_number}`}>
-                          <span className="font-mono text-muted-foreground">{port.port_number}</span>
-                          <div className="w-5 h-3 rounded-sm" style={{ backgroundColor: occ ? color + '55' : '#6b728022', border: `1px solid ${occ ? color : '#6b728040'}` }} />
-                          {occ && <span className="font-medium truncate w-full text-center">{port.device_port_info?.host_name?.split('.')[0]}</span>}
-                        </div>
-                      )
-                    })}
+                <div className="px-4 pb-4 pt-3 bg-background space-y-3">
+
+                  {/* Utilization bar */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full transition-all"
+                        style={{ width: `${panel.port_count > 0 ? Math.round((usedCount / panel.port_count) * 100) : 0}%`, backgroundColor: color }} />
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0">
+                      {usedCount}/{panel.port_count} used
+                    </span>
                   </div>
+
+                  {/* Port grid */}
+                  {!isKeystone ? (
+                    // Standard panel: fixed grid
+                    <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.min(panel.port_count, 24)}, minmax(0, 1fr))` }}>
+                      {panel.ports.map(port => {
+                        const occ = !!port.device_port_info
+                        return (
+                          <div key={port.id}
+                            className={`flex flex-col items-center gap-0.5 p-1 rounded border text-[8px] text-center ${occ ? 'border-border bg-muted/20' : 'border-dashed border-border/30'}`}
+                            title={occ ? `${port.device_port_info?.host_name} / ${port.device_port_info?.device_port_name}` : port.label || `Port ${port.port_number}`}>
+                            <span className="font-mono text-muted-foreground">{port.label || port.port_number}</span>
+                            <div className="w-5 h-3 rounded-sm"
+                              style={{ backgroundColor: occ ? color + '55' : '#6b728022', border: `1px solid ${occ ? color : '#6b728040'}` }} />
+                            {occ && <span className="font-medium truncate w-full text-center">{port.device_port_info?.host_name?.split('.')[0]}</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    // Keystone/Mixed panel: list view with individual port management
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">Ports ({panel.ports.length})</span>
+                        <button
+                          onClick={() => {
+                            setAddingPortTo(panel.id)
+                            const maxPort = panel.ports.length > 0 ? Math.max(...panel.ports.map(p => p.port_number)) : 0
+                            setNewPortNumber(maxPort + 1)
+                            setNewPortLabel('')
+                          }}
+                          className="flex items-center gap-1 rounded border border-dashed border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:text-primary hover:border-primary transition-colors">
+                          <Plus className="h-2.5 w-2.5" /> Add port
+                        </button>
+                      </div>
+
+                      {panel.ports.map(port => {
+                        const occ = !!port.device_port_info
+                        return (
+                          <div key={port.id}
+                            className="group flex items-center gap-2 rounded border border-border/60 bg-muted/10 px-2 py-1.5 hover:border-border transition-colors">
+                            <div className="w-4 h-4 rounded shrink-0 flex items-center justify-center text-[8px] font-mono text-muted-foreground"
+                              style={{ backgroundColor: color + '22', border: `1px solid ${color + '66'}` }}>
+                              {port.port_number}
+                            </div>
+                            <span className="text-xs font-medium flex-1">{port.label || `Port ${port.port_number}`}</span>
+                            {occ ? (
+                              <span className="text-[10px] text-muted-foreground">
+                                {port.device_port_info?.host_name} / {port.device_port_info?.device_port_name}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground/50">free</span>
+                            )}
+                            {!occ && (
+                              <button
+                                onClick={() => { if (window.confirm(`Delete port "${port.label || port.port_number}"?`)) deletePort.mutate(port.id) }}
+                                className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/20 transition-all">
+                                <Trash2 className="h-3 w-3 text-muted-foreground" />
+                              </button>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      {/* Add port form */}
+                      {addingPortTo === panel.id && (
+                        <div className="rounded border border-dashed border-primary/40 bg-primary/5 p-2 space-y-2 mt-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[10px] text-muted-foreground block mb-0.5">Port number</label>
+                              <input type="number" value={newPortNumber}
+                                onChange={e => setNewPortNumber(Number(e.target.value))}
+                                className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] text-muted-foreground block mb-0.5">Label (e.g. SC/APC-1, Room 101)</label>
+                              <input value={newPortLabel}
+                                onChange={e => setNewPortLabel(e.target.value)}
+                                placeholder="e.g. SC/APC-1"
+                                autoFocus
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') addPort.mutate({ panelId: panel.id, portNumber: newPortNumber, label: newPortLabel })
+                                  if (e.key === 'Escape') setAddingPortTo(null)
+                                }}
+                                className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
+                            </div>
+                          </div>
+                          <div className="flex gap-1 justify-end">
+                            <button onClick={() => setAddingPortTo(null)}
+                              className="px-2 py-1 rounded border border-border text-xs hover:bg-accent">Cancel</button>
+                            <button
+                              onClick={() => addPort.mutate({ panelId: panel.id, portNumber: newPortNumber, label: newPortLabel })}
+                              disabled={addPort.isPending}
+                              className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground disabled:opacity-50">
+                              <Plus className="h-3 w-3" /> Add
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {panel.ports.length === 0 && addingPortTo !== panel.id && (
+                        <p className="text-[10px] text-muted-foreground py-2 text-center">
+                          No ports yet — click "Add port" to add keystone ports individually.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -17,12 +17,15 @@ const MEDIA_META: Record<string, { color: string; label: string; short: string; 
   // Fiber SM
   fiber_lc_sm:  { color: '#f59e0b', label: 'Fiber SM — LC',         short: 'LC',   group: 'Fiber SM' },
   fiber_sc_sm:  { color: '#fbbf24', label: 'Fiber SM — SC',         short: 'SC',   group: 'Fiber SM' },
+  fiber_sc_apc: { color: '#10b981', label: 'Fiber SM — SC/APC',     short: 'APC',  group: 'Fiber SM' },
+  fiber_sc_upc: { color: '#34d399', label: 'Fiber SM — SC/UPC',     short: 'UPC',  group: 'Fiber SM' },
   fiber_st_sm:  { color: '#fcd34d', label: 'Fiber SM — ST',         short: 'ST',   group: 'Fiber SM' },
   fiber_fc_sm:  { color: '#fde68a', label: 'Fiber SM — FC',         short: 'FC',   group: 'Fiber SM' },
   fiber_e2000:  { color: '#f97316', label: 'Fiber SM — E2000',      short: 'E2k',  group: 'Fiber SM' },
   fiber_lsh:    { color: '#fb923c', label: 'Fiber SM — LSH',        short: 'LSH',  group: 'Fiber SM' },
   // Fiber MM
   fiber_lc_mm:  { color: '#a855f7', label: 'Fiber MM — LC',         short: 'LC',   group: 'Fiber MM' },
+  fiber_lc_apc: { color: '#6ee7b7', label: 'Fiber MM — LC/APC',     short: 'APC',  group: 'Fiber MM' },
   fiber_sc_mm:  { color: '#c084fc', label: 'Fiber MM — SC',         short: 'SC',   group: 'Fiber MM' },
   fiber_st_mm:  { color: '#d8b4fe', label: 'Fiber MM — ST',         short: 'ST',   group: 'Fiber MM' },
   fiber_fc_mm:  { color: '#e9d5ff', label: 'Fiber MM — FC',         short: 'FC',   group: 'Fiber MM' },
@@ -37,6 +40,7 @@ const MEDIA_META: Record<string, { color: string; label: string; short: string; 
   displayport:  { color: '#9ca3af', label: 'DisplayPort',           short: 'DP',   group: 'Other' },
   keystone:     { color: '#d1d5db', label: 'Keystone',              short: 'KS',   group: 'Other' },
   blank_1u:     { color: '#e5e7eb', label: 'Blank 1U',              short: '—',    group: 'Other' },
+  mixed:        { color: '#8b5cf6', label: 'Mixed / Keystone',      short: 'Mix',  group: 'Other' },
 }
 
 // ─── Single port slot ─────────────────────────────────────────────────────────

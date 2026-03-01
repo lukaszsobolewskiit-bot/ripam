@@ -148,6 +148,23 @@ export interface SiteFile {
   created_at: string
 }
 
+
+export interface SiteNote {
+  id: number
+  site: number
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ProjectNote {
+  id: number
+  project: number
+  content: string
+  created_at: string
+  updated_at: string
+}
+
 export interface HostNote {
   id: number
   host: number

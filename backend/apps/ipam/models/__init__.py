@@ -16,3 +16,4 @@ from .host_file import HostFile
 from .site_file import SiteFile
 from .patch_panel import PatchPanel, PatchPanelPort, PatchPanelConnection
 from .rack import Rack, RackUnit
+from .site_note import SiteNote, ProjectNote

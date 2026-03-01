@@ -4,7 +4,13 @@ from rest_framework import serializers
 
 from apps.projects.models import Project, Site
 from apps.projects.serializers import SiteWanAddressSerializer
-from .models import VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel, PortTemplate, HostPort, PortConnection, HostNote, HostFile, SiteFile
+from .models import (
+    VLAN, Host, Subnet, Tunnel, DHCPPool, DeviceType, Manufacturer, DeviceModel,
+    PortTemplate, HostPort, PortConnection, HostNote, HostFile, SiteFile,
+    PatchPanel, PatchPanelPort, PatchPanelConnection,
+    Rack, RackUnit,
+    SiteNote, ProjectNote,
+)
 from .validators import (
     check_ip_duplicate_in_project, check_ip_in_subnet, check_subnet_overlap,
     check_pool_range_in_subnet, check_pool_overlap, check_static_ip_not_in_pool, check_lease_ip_in_pool,
@@ -449,8 +455,6 @@ class ProjectTopologySerializer(serializers.Serializer):
 
 # ─── PatchPanel serializers ───────────────────────────────────────────────────
 
-from .models import PatchPanel, PatchPanelPort, PatchPanelConnection
-
 
 class PatchPanelPortSerializer(serializers.ModelSerializer):
     label_display = serializers.SerializerMethodField()
@@ -527,8 +531,6 @@ class PatchPanelConnectionSerializer(serializers.ModelSerializer):
 
 # ─── Rack serializers ─────────────────────────────────────────────────────────
 
-from .models import Rack, RackUnit
-
 
 class RackUnitSerializer(serializers.ModelSerializer):
     host_name = serializers.SerializerMethodField()
@@ -586,3 +588,20 @@ class RackSerializer(serializers.ModelSerializer):
 
     def get_used_u(self, obj):
         return sum(u.height_u for u in obj.rack_units.all())
+
+
+# ─── Site / Project Notes ─────────────────────────────────────────────────────
+
+
+class SiteNoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SiteNote
+        fields = ['id', 'site', 'content', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+class ProjectNoteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectNote
+        fields = ['id', 'project', 'content', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']

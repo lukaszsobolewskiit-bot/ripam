@@ -12,12 +12,15 @@ class PatchPanel(models.Model):
         # ── Fiber singlemode ───────────────────────────────────────────────
         FIBER_LC_SM   = "fiber_lc_sm",    "Fiber SM — LC"
         FIBER_SC_SM   = "fiber_sc_sm",    "Fiber SM — SC"
+        FIBER_SC_APC  = "fiber_sc_apc",   "Fiber SM — SC/APC"
+        FIBER_SC_UPC  = "fiber_sc_upc",   "Fiber SM — SC/UPC"
         FIBER_ST_SM   = "fiber_st_sm",    "Fiber SM — ST"
         FIBER_FC_SM   = "fiber_fc_sm",    "Fiber SM — FC"
         FIBER_E2000   = "fiber_e2000",    "Fiber SM — E2000"
         FIBER_LSH     = "fiber_lsh",      "Fiber SM — LSH/E2000"
         # ── Fiber multimode ────────────────────────────────────────────────
         FIBER_LC_MM   = "fiber_lc_mm",    "Fiber MM — LC"
+        FIBER_LC_APC  = "fiber_lc_apc",   "Fiber MM — LC/APC"
         FIBER_SC_MM   = "fiber_sc_mm",    "Fiber MM — SC"
         FIBER_ST_MM   = "fiber_st_mm",    "Fiber MM — ST"
         FIBER_FC_MM   = "fiber_fc_mm",    "Fiber MM — FC"
@@ -33,6 +36,7 @@ class PatchPanel(models.Model):
         # ── Keystone / Blank ──────────────────────────────────────────────
         KEYSTONE      = "keystone",       "Keystone (generic)"
         BLANK_1U      = "blank_1u",       "Blank 1U"
+        MIXED         = "mixed",          "Mixed / Keystone panel"
 
     site = models.ForeignKey(
         "projects.Site",
