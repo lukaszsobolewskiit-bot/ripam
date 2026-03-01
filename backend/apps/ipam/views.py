@@ -534,13 +534,16 @@ class PatchPanelViewSet(viewsets.ModelViewSet):
         qs = PatchPanel.objects.prefetch_related(
             'ports__connections__device_port__host',
             'ports__connections__far_panel_port__panel',
-        )
+        ).select_related('site')
         site = self.request.query_params.get('site')
         project = self.request.query_params.get('project')
         if site:
             qs = qs.filter(site_id=site)
         if project:
-            qs = qs.filter(site__project_id=project)
+            # Show panels belonging to a site in this project OR unassigned panels
+            qs = qs.filter(
+                models.Q(site__project_id=project) | models.Q(site__isnull=True)
+            )
         return qs
 
     def perform_create(self, serializer):

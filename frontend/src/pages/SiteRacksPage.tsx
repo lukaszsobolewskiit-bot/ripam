@@ -175,10 +175,10 @@ export function SiteRacksPage() {
   })
 
   const { data: panels } = useQuery({
-    queryKey: ['patch-panels', { site: sid }],
-    queryFn: () => patchPanelsApi.list({ site: String(sid) }),
+    queryKey: ['patch-panels', { project: pid }],
+    queryFn: () => patchPanelsApi.list({ project: String(pid) }),
     select: (res) => res.data.map(p => ({ id: p.id, name: p.name })),
-    enabled: !!sid,
+    enabled: !!pid,
   })
 
   const deleteRack = useMutation({
