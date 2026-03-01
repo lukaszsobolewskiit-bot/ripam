@@ -524,3 +524,65 @@ class PatchPanelConnectionSerializer(serializers.ModelSerializer):
 
     def get_far_panel_port_number(self, obj):
         return obj.far_panel_port.port_number if obj.far_panel_port else None
+
+# ─── Rack serializers ─────────────────────────────────────────────────────────
+
+from .models import Rack, RackUnit
+
+
+class RackUnitSerializer(serializers.ModelSerializer):
+    host_name = serializers.SerializerMethodField()
+    host_ip = serializers.SerializerMethodField()
+    host_device_type = serializers.SerializerMethodField()
+    host_model_name = serializers.SerializerMethodField()
+    patch_panel_name = serializers.CharField(source='patch_panel.name', read_only=True)
+    patch_panel_media_type = serializers.CharField(source='patch_panel.media_type', read_only=True)
+
+    class Meta:
+        model = RackUnit
+        fields = [
+            'id', 'rack', 'host', 'patch_panel', 'position_u', 'height_u', 'face',
+            'label', 'item_type', 'color', 'created_at',
+            'host_name', 'host_ip', 'host_device_type', 'host_model_name',
+            'patch_panel_name', 'patch_panel_media_type',
+        ]
+        read_only_fields = ['id', 'created_at']
+
+    def get_host_name(self, obj):
+        if obj.host:
+            return obj.host.hostname or str(obj.host.ip_address).split('/')[0]
+        return None
+
+    def get_host_ip(self, obj):
+        if obj.host:
+            return str(obj.host.ip_address).split('/')[0]
+        return None
+
+    def get_host_device_type(self, obj):
+        if obj.host:
+            return obj.host.device_type
+        return None
+
+    def get_host_model_name(self, obj):
+        if obj.host and obj.host.device_model:
+            return str(obj.host.device_model)
+        return None
+
+
+class RackSerializer(serializers.ModelSerializer):
+    rack_units = RackUnitSerializer(many=True, read_only=True)
+    site_name = serializers.CharField(source='site.name', read_only=True)
+    used_u = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Rack
+        fields = [
+            'id', 'site', 'site_name', 'name', 'facility_id', 'status', 'rack_type',
+            'height_u', 'numbering_desc', 'width_mm', 'depth_mm',
+            'serial_number', 'asset_tag', 'location', 'description',
+            'created_at', 'updated_at', 'rack_units', 'used_u',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_used_u(self, obj):
+        return sum(u.height_u for u in obj.rack_units.all())

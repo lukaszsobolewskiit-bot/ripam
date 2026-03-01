@@ -1011,17 +1011,45 @@ function DeviceTypesSection() {
 
 // ─── Patch Panel Section ──────────────────────────────────────────────────────
 
-const MEDIA_TYPE_OPTIONS = [
-  { value: 'copper',    label: 'Copper (RJ45)' },
-  { value: 'fiber_lc',  label: 'Fiber LC' },
-  { value: 'fiber_sc',  label: 'Fiber SC' },
-  { value: 'fiber_st',  label: 'Fiber ST' },
-  { value: 'fiber_mtp', label: 'Fiber MTP/MPO' },
+// Grouped for the select dropdown
+const MEDIA_TYPE_OPTIONS: { value: string; label: string; group: string }[] = [
+  // Copper
+  { value: 'copper',      label: 'Copper — RJ45',        group: 'Copper' },
+  { value: 'copper_rj11', label: 'Copper — RJ11',        group: 'Copper' },
+  { value: 'copper_coax', label: 'Copper — Coax (BNC/F)',group: 'Copper' },
+  // Fiber SM
+  { value: 'fiber_lc_sm', label: 'Fiber SM — LC',        group: 'Fiber SM' },
+  { value: 'fiber_sc_sm', label: 'Fiber SM — SC',        group: 'Fiber SM' },
+  { value: 'fiber_st_sm', label: 'Fiber SM — ST',        group: 'Fiber SM' },
+  { value: 'fiber_fc_sm', label: 'Fiber SM — FC',        group: 'Fiber SM' },
+  { value: 'fiber_e2000', label: 'Fiber SM — E2000',     group: 'Fiber SM' },
+  { value: 'fiber_lsh',   label: 'Fiber SM — LSH/E2000', group: 'Fiber SM' },
+  // Fiber MM
+  { value: 'fiber_lc_mm', label: 'Fiber MM — LC',        group: 'Fiber MM' },
+  { value: 'fiber_sc_mm', label: 'Fiber MM — SC',        group: 'Fiber MM' },
+  { value: 'fiber_st_mm', label: 'Fiber MM — ST',        group: 'Fiber MM' },
+  { value: 'fiber_fc_mm', label: 'Fiber MM — FC',        group: 'Fiber MM' },
+  // MTP/MPO
+  { value: 'fiber_mpo12', label: 'Fiber MTP/MPO-12',     group: 'MTP/MPO' },
+  { value: 'fiber_mpo24', label: 'Fiber MTP/MPO-24',     group: 'MTP/MPO' },
+  { value: 'fiber_mtp',   label: 'Fiber MTP (generic)',  group: 'MTP/MPO' },
+  // Pre-terminated
+  { value: 'fiber_pretm', label: 'Fiber Pre-terminated', group: 'Pre-term' },
+  // Other
+  { value: 'hdmi',        label: 'HDMI',                 group: 'Other' },
+  { value: 'displayport', label: 'DisplayPort',          group: 'Other' },
+  { value: 'keystone',    label: 'Keystone',             group: 'Other' },
+  { value: 'blank_1u',    label: 'Blank 1U',             group: 'Other' },
 ]
 
 const MEDIA_COLORS: Record<string, string> = {
-  copper: '#3b82f6', fiber_lc: '#f59e0b', fiber_sc: '#f59e0b',
-  fiber_st: '#8b5cf6', fiber_mtp: '#ec4899',
+  copper: '#3b82f6', copper_rj11: '#60a5fa', copper_coax: '#93c5fd',
+  fiber_lc_sm: '#f59e0b', fiber_sc_sm: '#fbbf24', fiber_st_sm: '#fcd34d',
+  fiber_fc_sm: '#fde68a', fiber_e2000: '#f97316', fiber_lsh: '#fb923c',
+  fiber_lc_mm: '#a855f7', fiber_sc_mm: '#c084fc', fiber_st_mm: '#d8b4fe', fiber_fc_mm: '#e9d5ff',
+  fiber_mpo12: '#ec4899', fiber_mpo24: '#f472b6', fiber_mtp: '#fb7185',
+  fiber_pretm: '#34d399',
+  hdmi: '#6b7280', displayport: '#9ca3af', keystone: '#d1d5db', blank_1u: '#e5e7eb',
 }
 
 function PatchPanelSection() {
@@ -1115,7 +1143,15 @@ function PatchPanelSection() {
               <label className="text-[10px] text-muted-foreground block mb-0.5">Media type *</label>
               <select value={newMedia} onChange={e => setNewMedia(e.target.value)}
                 className="w-full rounded border border-input bg-background px-2 py-1 text-xs">
-                {MEDIA_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                {Object.entries(
+                      MEDIA_TYPE_OPTIONS.reduce((acc, o) => {
+                        ;(acc[o.group] ??= []).push(o); return acc
+                      }, {} as Record<string, typeof MEDIA_TYPE_OPTIONS>)
+                    ).map(([group, opts]) => (
+                      <optgroup key={group} label={group}>
+                        {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </optgroup>
+                    ))}
               </select>
             </div>
             <div>
@@ -1168,7 +1204,15 @@ function PatchPanelSection() {
                     className="w-32 rounded border border-input bg-background px-2 py-0.5 text-xs" />
                   <select value={editMedia} onChange={e => setEditMedia(e.target.value)}
                     className="rounded border border-input bg-background px-2 py-0.5 text-xs">
-                    {MEDIA_TYPE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    {Object.entries(
+                      MEDIA_TYPE_OPTIONS.reduce((acc, o) => {
+                        ;(acc[o.group] ??= []).push(o); return acc
+                      }, {} as Record<string, typeof MEDIA_TYPE_OPTIONS>)
+                    ).map(([group, opts]) => (
+                      <optgroup key={group} label={group}>
+                        {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </optgroup>
+                    ))}
                   </select>
                   <input value={editLocation} onChange={e => setEditLocation(e.target.value)}
                     placeholder="Location"

@@ -15,3 +15,4 @@ from .host_note import HostNote
 from .host_file import HostFile
 from .site_file import SiteFile
 from .patch_panel import PatchPanel, PatchPanelPort, PatchPanelConnection
+from .rack import Rack, RackUnit

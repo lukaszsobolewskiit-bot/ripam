@@ -329,3 +329,27 @@ export const patchPanelConnectionsApi = {
     apiClient.delete(`/patch-panel-connections/${id}/`),
 }
 
+export const racksApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<Rack[]>('/racks/', { params }),
+  get: (id: number) =>
+    apiClient.get<Rack>(`/racks/${id}/`),
+  create: (data: Partial<Rack>) =>
+    apiClient.post<Rack>('/racks/', data),
+  update: (id: number, data: Partial<Rack>) =>
+    apiClient.patch<Rack>(`/racks/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/racks/${id}/`),
+}
+
+export const rackUnitsApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<RackUnit[]>('/rack-units/', { params }),
+  create: (data: Partial<RackUnit>) =>
+    apiClient.post<RackUnit>('/rack-units/', data),
+  update: (id: number, data: Partial<RackUnit>) =>
+    apiClient.patch<RackUnit>(`/rack-units/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/rack-units/${id}/`),
+}
+

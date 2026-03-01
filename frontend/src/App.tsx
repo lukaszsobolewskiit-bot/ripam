@@ -9,6 +9,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { WizardPage } from '@/pages/WizardPage'
 import { UsersPage } from '@/pages/UsersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { SiteRacksPage } from '@/pages/SiteRacksPage'
 import { CommandPalette } from '@/components/search/CommandPalette'
 import { useUIStore } from '@/stores/ui.store'
 import { authApi } from '@/api/endpoints'
@@ -64,6 +65,7 @@ function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/projects" element={<ProjectsListPage />} />
           <Route path="/projects/:projectId/*" element={<ProjectPage />} />
+          <Route path="/projects/:projectId/sites/:siteId/racks" element={<SiteRacksPage />} />
           <Route path="/wizard" element={<WizardPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/settings" element={<SettingsPage />} />

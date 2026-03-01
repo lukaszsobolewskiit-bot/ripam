@@ -9,12 +9,34 @@ import type { PatchPanel, PatchPanelPort } from '@/types'
 
 // ─── Media type styling ───────────────────────────────────────────────────────
 
-const MEDIA_META: Record<string, { color: string; label: string; short: string }> = {
-  copper:    { color: '#3b82f6', label: 'Copper (RJ45)', short: 'Cu' },
-  fiber_lc:  { color: '#f59e0b', label: 'Fiber LC',      short: 'LC' },
-  fiber_sc:  { color: '#f59e0b', label: 'Fiber SC',      short: 'SC' },
-  fiber_st:  { color: '#8b5cf6', label: 'Fiber ST',      short: 'ST' },
-  fiber_mtp: { color: '#ec4899', label: 'Fiber MTP/MPO', short: 'MTP' },
+const MEDIA_META: Record<string, { color: string; label: string; short: string; group: string }> = {
+  // Copper
+  copper:       { color: '#3b82f6', label: 'Copper — RJ45',         short: 'Cu',   group: 'Copper' },
+  copper_rj11:  { color: '#60a5fa', label: 'Copper — RJ11',         short: 'RJ11', group: 'Copper' },
+  copper_coax:  { color: '#93c5fd', label: 'Copper — Coax',         short: 'Coax', group: 'Copper' },
+  // Fiber SM
+  fiber_lc_sm:  { color: '#f59e0b', label: 'Fiber SM — LC',         short: 'LC',   group: 'Fiber SM' },
+  fiber_sc_sm:  { color: '#fbbf24', label: 'Fiber SM — SC',         short: 'SC',   group: 'Fiber SM' },
+  fiber_st_sm:  { color: '#fcd34d', label: 'Fiber SM — ST',         short: 'ST',   group: 'Fiber SM' },
+  fiber_fc_sm:  { color: '#fde68a', label: 'Fiber SM — FC',         short: 'FC',   group: 'Fiber SM' },
+  fiber_e2000:  { color: '#f97316', label: 'Fiber SM — E2000',      short: 'E2k',  group: 'Fiber SM' },
+  fiber_lsh:    { color: '#fb923c', label: 'Fiber SM — LSH',        short: 'LSH',  group: 'Fiber SM' },
+  // Fiber MM
+  fiber_lc_mm:  { color: '#a855f7', label: 'Fiber MM — LC',         short: 'LC',   group: 'Fiber MM' },
+  fiber_sc_mm:  { color: '#c084fc', label: 'Fiber MM — SC',         short: 'SC',   group: 'Fiber MM' },
+  fiber_st_mm:  { color: '#d8b4fe', label: 'Fiber MM — ST',         short: 'ST',   group: 'Fiber MM' },
+  fiber_fc_mm:  { color: '#e9d5ff', label: 'Fiber MM — FC',         short: 'FC',   group: 'Fiber MM' },
+  // MPO/MTP
+  fiber_mpo12:  { color: '#ec4899', label: 'Fiber MTP/MPO-12',      short: 'M12',  group: 'MTP/MPO' },
+  fiber_mpo24:  { color: '#f472b6', label: 'Fiber MTP/MPO-24',      short: 'M24',  group: 'MTP/MPO' },
+  fiber_mtp:    { color: '#fb7185', label: 'Fiber MTP (generic)',    short: 'MTP',  group: 'MTP/MPO' },
+  // Pre-terminated
+  fiber_pretm:  { color: '#34d399', label: 'Fiber Pre-terminated',  short: 'PT',   group: 'Pre-term' },
+  // Other
+  hdmi:         { color: '#6b7280', label: 'HDMI',                  short: 'HDMI', group: 'Other' },
+  displayport:  { color: '#9ca3af', label: 'DisplayPort',           short: 'DP',   group: 'Other' },
+  keystone:     { color: '#d1d5db', label: 'Keystone',              short: 'KS',   group: 'Other' },
+  blank_1u:     { color: '#e5e7eb', label: 'Blank 1U',              short: '—',    group: 'Other' },
 }
 
 // ─── Single port slot ─────────────────────────────────────────────────────────

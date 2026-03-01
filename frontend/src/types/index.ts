@@ -167,6 +167,54 @@ export interface HostFile {
 }
 
 
+
+export type RackStatus = 'active' | 'planned' | 'reserved' | 'decommissioning' | 'retired'
+export type RackType = '2post_open' | '2post_closed' | '4post_open' | '4post_closed' | 'wall_open' | 'wall_closed'
+export type RackItemType = 'device' | 'patch_panel' | 'cable_mgmt' | 'blank' | 'pdu' | 'ups' | 'other'
+
+export interface RackUnit {
+  id: number
+  rack: number
+  host: number | null
+  patch_panel: number | null
+  position_u: number
+  height_u: number
+  face: 'front' | 'rear'
+  label: string
+  item_type: RackItemType
+  color: string
+  created_at: string
+  // read-only denorm
+  host_name: string | null
+  host_ip: string | null
+  host_device_type: string | null
+  host_model_name: string | null
+  patch_panel_name: string | null
+  patch_panel_media_type: string | null
+}
+
+export interface Rack {
+  id: number
+  site: number
+  site_name: string
+  name: string
+  facility_id: string
+  status: RackStatus
+  rack_type: RackType
+  height_u: number
+  numbering_desc: boolean
+  width_mm: number
+  depth_mm: number
+  serial_number: string
+  asset_tag: string
+  location: string
+  description: string
+  created_at: string
+  updated_at: string
+  rack_units: RackUnit[]
+  used_u: number
+}
+
 export interface PatchPanelPort {
   id: number
   panel: number

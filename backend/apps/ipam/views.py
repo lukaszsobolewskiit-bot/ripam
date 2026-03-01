@@ -592,3 +592,43 @@ class PatchPanelConnectionViewSet(viewsets.ModelViewSet):
                 except Exception:
                     pass
         serializer.save()
+
+
+# ─── Rack views ───────────────────────────────────────────────────────────────
+
+from .models import Rack, RackUnit
+from .serializers import RackSerializer, RackUnitSerializer
+
+
+class RackViewSet(viewsets.ModelViewSet):
+    serializer_class = RackSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = Rack.objects.select_related('site').prefetch_related(
+            'rack_units__host__device_model',
+            'rack_units__patch_panel',
+        )
+        site = self.request.query_params.get('site')
+        project = self.request.query_params.get('project')
+        if site:
+            qs = qs.filter(site_id=site)
+        if project:
+            qs = qs.filter(site__project_id=project)
+        return qs
+
+
+class RackUnitViewSet(viewsets.ModelViewSet):
+    serializer_class = RackUnitSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = RackUnit.objects.select_related(
+            'rack', 'host__device_model', 'patch_panel'
+        )
+        rack = self.request.query_params.get('rack')
+        if rack:
+            qs = qs.filter(rack_id=rack)
+        return qs

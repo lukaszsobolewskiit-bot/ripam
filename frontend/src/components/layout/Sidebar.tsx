@@ -23,7 +23,22 @@ import {
   ChevronRight, ChevronDown, Plus,
   Pencil, Trash2, Cable, Layers,
   ChevronsUpDown, ChevronsDownUp, ArrowLeftRight,
+  LayoutList,
 } from 'lucide-react'
+
+// Rack icon: a small inline SVG component (lucide doesn't have a rack icon)
+function Rack({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="2" width="20" height="8" rx="1"/>
+      <rect x="2" y="14" width="20" height="8" rx="1"/>
+      <line x1="6" y1="6" x2="6" y2="6.01"/>
+      <line x1="6" y1="18" x2="6" y2="18.01"/>
+      <line x1="10" y1="6" x2="18" y2="6"/>
+      <line x1="10" y1="18" x2="18" y2="18"/>
+    </svg>
+  )
+}
 
 interface SidebarProps {
   className?: string
@@ -273,6 +288,7 @@ function ProjectTreeItem({
 
 function SiteTreeItem({ site, projectId }: { site: Site; projectId: number }) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const expanded = useSelectionStore((s) => s.expandedSiteIds.has(site.id))
   const toggleExpanded = useSelectionStore((s) => s.toggleExpandedSite)
   const selectedSiteId = useSelectionStore((s) => s.selectedSiteId)
@@ -286,6 +302,17 @@ function SiteTreeItem({ site, projectId }: { site: Site; projectId: number }) {
   const [addStandaloneSubnetOpen, setAddStandaloneSubnetOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
   const [addConnectionOpen, setAddConnectionOpen] = useState(false)
+
+  const { data: rackCount } = useQuery({
+    queryKey: ['racks-count', site.id],
+    queryFn: async () => {
+      const { racksApi } = await import('@/api/endpoints')
+      const res = await racksApi.list({ site: String(site.id) })
+      return res.data.length
+    },
+    enabled: expanded,
+    staleTime: 30_000,
+  })
 
   const { data: siteConnectionsData } = useQuery({
     queryKey: ['port-connections-all', { site: site.id }],
@@ -360,6 +387,7 @@ function SiteTreeItem({ site, projectId }: { site: Site; projectId: number }) {
           { label: 'Add VLAN', icon: <Network className="h-3 w-3" />, onClick: () => setAddVlanOpen(true) },
           { label: 'Add Subnet', icon: <Server className="h-3 w-3" />, onClick: () => setAddStandaloneSubnetOpen(true) },
           { label: 'Add Connection', icon: <ArrowLeftRight className="h-3 w-3" />, onClick: () => setAddConnectionOpen(true) },
+          { label: 'Manage Racks', icon: <Rack className="h-3 w-3" />, onClick: () => navigate(`/projects/${projectId}/sites/${site.id}/racks`) },
           { label: 'Edit', icon: <Pencil className="h-3 w-3" />, onClick: () => setEditOpen(true) },
           { label: 'Delete', icon: <Trash2 className="h-3 w-3" />, variant: 'destructive' as const, onClick: () => {
             if (window.confirm(`Delete site "${site.name}"?`)) deleteMutation.mutate()
@@ -400,6 +428,18 @@ function SiteTreeItem({ site, projectId }: { site: Site; projectId: number }) {
           {siteConnections.map((conn) => (
             <PortConnectionTreeItem key={conn.id} connection={conn} projectId={projectId} />
           ))}
+
+          {/* Racks quick link */}
+          <button
+            onClick={() => navigate(`/projects/${projectId}/sites/${site.id}/racks`)}
+            className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors mt-1"
+          >
+            <Rack className="h-3 w-3 shrink-0 text-primary/70" />
+            <span>Racks</span>
+            {rackCount != null && rackCount > 0 && (
+              <span className="ml-auto text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full font-medium">{rackCount}</span>
+            )}
+          </button>
         </div>
       )}
 
