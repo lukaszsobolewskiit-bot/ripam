@@ -64,9 +64,31 @@ class PatchPanel(models.Model):
 
 
 class PatchPanelPort(models.Model):
+    BACK_MEDIA_CHOICES = [
+        ("same",         "Taki sam jak przód"),
+        ("copper",       "Copper — RJ45"),
+        ("copper_rj11",  "Copper — RJ11"),
+        ("fiber_lc_sm",  "Fiber SM — LC"),
+        ("fiber_sc_sm",  "Fiber SM — SC"),
+        ("fiber_sc_apc", "Fiber SM — SC/APC"),
+        ("fiber_sc_upc", "Fiber SM — SC/UPC"),
+        ("fiber_st_sm",  "Fiber SM — ST"),
+        ("fiber_fc_sm",  "Fiber SM — FC"),
+        ("fiber_lc_mm",  "Fiber MM — LC"),
+        ("fiber_sc_mm",  "Fiber MM — SC"),
+        ("fiber_mpo12",  "Fiber MPO-12"),
+        ("fiber_mpo24",  "Fiber MPO-24"),
+    ]
+
     panel = models.ForeignKey(PatchPanel, on_delete=models.CASCADE, related_name="ports")
     port_number = models.PositiveIntegerField()
     label = models.CharField(max_length=50, blank=True)
+    back_media_type = models.CharField(
+        max_length=30,
+        choices=BACK_MEDIA_CHOICES,
+        default="same",
+        help_text="Typ złącza po stronie tylnej (tył → kabel)"
+    )
 
     class Meta:
         db_table = "ipam_patch_panel_port"

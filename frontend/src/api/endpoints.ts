@@ -379,3 +379,52 @@ export const projectNotesApi = {
     apiClient.delete(`/project-notes/${id}/`),
 }
 
+export const subscriberBoxesApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<SubscriberBox[]>('/subscriber-boxes/', { params }),
+  create: (data: Partial<SubscriberBox>) =>
+    apiClient.post<SubscriberBox>('/subscriber-boxes/', data),
+  update: (id: number, data: Partial<SubscriberBox>) =>
+    apiClient.patch<SubscriberBox>(`/subscriber-boxes/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/subscriber-boxes/${id}/`),
+}
+
+export const subscriberBoxPortsApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<SubscriberBoxPort[]>('/subscriber-box-ports/', { params }),
+  create: (data: Partial<SubscriberBoxPort>) =>
+    apiClient.post<SubscriberBoxPort>('/subscriber-box-ports/', data),
+  update: (id: number, data: Partial<SubscriberBoxPort>) =>
+    apiClient.patch<SubscriberBoxPort>(`/subscriber-box-ports/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/subscriber-box-ports/${id}/`),
+}
+
+export const subscriberBoxConnectionsApi = {
+  create: (data: Record<string, unknown>) =>
+    apiClient.post('/subscriber-box-connections/', data),
+  delete: (id: number) =>
+    apiClient.delete(`/subscriber-box-connections/${id}/`),
+}
+
+export const panelPortTemplatesApi = {
+  list: () =>
+    apiClient.get<PanelPortTemplate[]>('/panel-port-templates/'),
+  create: (data: Partial<PanelPortTemplate>) =>
+    apiClient.post<PanelPortTemplate>('/panel-port-templates/', data),
+  update: (id: number, data: Partial<PanelPortTemplate>) =>
+    apiClient.patch<PanelPortTemplate>(`/panel-port-templates/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/panel-port-templates/${id}/`),
+}
+
+export const panelPortTemplateEntriesApi = {
+  create: (data: Partial<PanelPortTemplateEntry>) =>
+    apiClient.post<PanelPortTemplateEntry>('/panel-port-template-entries/', data),
+  update: (id: number, data: Partial<PanelPortTemplateEntry>) =>
+    apiClient.patch<PanelPortTemplateEntry>(`/panel-port-template-entries/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/panel-port-template-entries/${id}/`),
+}
+

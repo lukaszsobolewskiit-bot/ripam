@@ -10,6 +10,8 @@ from .models import (
     PatchPanel, PatchPanelPort, PatchPanelConnection,
     Rack, RackUnit,
     SiteNote, ProjectNote,
+    SubscriberBox, SubscriberBoxPort, SubscriberBoxConnection,
+    PanelPortTemplate, PanelPortTemplateEntry,
 )
 from .validators import (
     check_ip_duplicate_in_project, check_ip_in_subnet, check_subnet_overlap,
@@ -605,3 +607,94 @@ class ProjectNoteSerializer(serializers.ModelSerializer):
         model = ProjectNote
         fields = ['id', 'project', 'content', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+# ─── SubscriberBox ────────────────────────────────────────────────────────────
+
+
+
+class SubscriberBoxPortSerializer(serializers.ModelSerializer):
+    direction_display = serializers.CharField(source='get_direction_display', read_only=True)
+    media_display = serializers.SerializerMethodField()
+    connection_info = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubscriberBoxPort
+        fields = ['id', 'box', 'port_number', 'label', 'direction', 'direction_display',
+                  'media_type', 'media_display', 'connection_info']
+        read_only_fields = ['id', 'direction_display', 'media_display', 'connection_info']
+
+    def get_media_display(self, obj):
+        return obj.get_media_type_display()
+
+    def get_connection_info(self, obj):
+        try:
+            c = obj.connection
+            result = {'connection_id': c.id}
+            if c.panel_port:
+                result['panel_port_id'] = c.panel_port.id
+                result['panel_name'] = c.panel_port.panel.name
+                result['panel_port_number'] = c.panel_port.port_number
+            if c.device_port:
+                result['device_port_id'] = c.device_port.id
+                result['device_port_name'] = c.device_port.name
+                result['host_name'] = c.device_port.host.hostname or str(c.device_port.host.ip_address)
+            return result
+        except Exception:
+            return None
+
+
+class SubscriberBoxSerializer(serializers.ModelSerializer):
+    ports = SubscriberBoxPortSerializer(many=True, read_only=True)
+    site_name = serializers.CharField(source='site.name', read_only=True)
+    box_type_display = serializers.CharField(source='get_box_type_display', read_only=True)
+    trunk_count = serializers.SerializerMethodField()
+    drop_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SubscriberBox
+        fields = ['id', 'site', 'site_name', 'name', 'box_type', 'box_type_display',
+                  'location', 'description', 'created_at', 'ports', 'trunk_count', 'drop_count']
+        read_only_fields = ['id', 'site_name', 'box_type_display', 'created_at']
+
+    def get_trunk_count(self, obj):
+        return sum(1 for p in obj.ports.all() if p.direction == 'trunk')
+
+    def get_drop_count(self, obj):
+        return sum(1 for p in obj.ports.all() if p.direction == 'drop')
+
+
+class SubscriberBoxConnectionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubscriberBoxConnection
+        fields = ['id', 'box_port', 'panel_port', 'device_port', 'description', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
+# ─── PanelPortTemplate ────────────────────────────────────────────────────────
+
+class PanelPortTemplateEntrySerializer(serializers.ModelSerializer):
+    media_display = serializers.CharField(source='get_media_type_display', read_only=True)
+    face_display = serializers.CharField(source='get_face_display', read_only=True)
+
+    class Meta:
+        model = PanelPortTemplateEntry
+        fields = ['id', 'template', 'count', 'media_type', 'media_display',
+                  'face', 'face_display', 'label_prefix', 'sort_order']
+        read_only_fields = ['id', 'media_display', 'face_display']
+
+
+class PanelPortTemplateSerializer(serializers.ModelSerializer):
+    entries = PanelPortTemplateEntrySerializer(many=True, read_only=True)
+    summary = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PanelPortTemplate
+        fields = ['id', 'name', 'description', 'created_at', 'entries', 'summary']
+        read_only_fields = ['id', 'created_at', 'entries', 'summary']
+
+    def get_summary(self, obj):
+        parts = []
+        for e in obj.entries.all():
+            parts.append(f"{e.count}×{e.get_media_type_display().split('—')[-1].strip()} ({e.face})")
+        return ' + '.join(parts) if parts else '—'

@@ -149,6 +149,63 @@ export interface SiteFile {
 }
 
 
+
+export interface SubscriberBoxPort {
+  id: number
+  box: number
+  port_number: number
+  label: string
+  direction: 'trunk' | 'drop'
+  direction_display: string
+  media_type: string
+  media_display: string
+  connection_info: {
+    connection_id: number
+    panel_port_id?: number
+    panel_name?: string
+    panel_port_number?: number
+    device_port_id?: number
+    device_port_name?: string
+    host_name?: string
+  } | null
+}
+
+export interface SubscriberBox {
+  id: number
+  site: number | null
+  site_name: string | null
+  name: string
+  box_type: string
+  box_type_display: string
+  location: string
+  description: string
+  created_at: string
+  ports: SubscriberBoxPort[]
+  trunk_count: number
+  drop_count: number
+}
+
+export interface PanelPortTemplateEntry {
+  id: number
+  template: number
+  count: number
+  media_type: string
+  media_display: string
+  face: 'front' | 'back'
+  face_display: string
+  label_prefix: string
+  sort_order: number
+}
+
+export interface PanelPortTemplate {
+  id: number
+  name: string
+  description: string
+  created_at: string
+  entries: PanelPortTemplateEntry[]
+  summary: string
+}
+
 export interface SiteNote {
   id: number
   site: number
@@ -238,6 +295,7 @@ export interface PatchPanelPort {
   port_number: number
   label: string
   label_display: string
+  back_media_type: string
   device_port_info: {
     connection_id: number
     device_port_id?: number

@@ -17,6 +17,8 @@ from .models import (
     PatchPanel, PatchPanelPort, PatchPanelConnection,
     Rack, RackUnit,
     SiteNote, ProjectNote,
+    SubscriberBox, SubscriberBoxPort, SubscriberBoxConnection,
+    PanelPortTemplate, PanelPortTemplateEntry,
 )
 from .permissions import IsAdmin, ProjectPermission
 from .serializers import (
@@ -27,6 +29,8 @@ from .serializers import (
     PatchPanelSerializer, PatchPanelPortSerializer, PatchPanelConnectionSerializer,
     RackSerializer, RackUnitSerializer,
     SiteNoteSerializer, ProjectNoteSerializer,
+    SubscriberBoxSerializer, SubscriberBoxPortSerializer, SubscriberBoxConnectionSerializer,
+    PanelPortTemplateSerializer, PanelPortTemplateEntrySerializer,
 )
 
 
@@ -668,4 +672,78 @@ class ProjectNoteViewSet(viewsets.ModelViewSet):
         project = self.request.query_params.get('project')
         if project:
             qs = qs.filter(project_id=project)
+        return qs
+
+
+# ─── SubscriberBox views ──────────────────────────────────────────────────────
+
+
+
+class SubscriberBoxViewSet(viewsets.ModelViewSet):
+    serializer_class = SubscriberBoxSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = SubscriberBox.objects.prefetch_related(
+            'ports__connection__panel_port__panel',
+            'ports__connection__device_port__host',
+        ).select_related('site')
+        site = self.request.query_params.get('site')
+        project = self.request.query_params.get('project')
+        if site:
+            qs = qs.filter(site_id=site)
+        if project:
+            qs = qs.filter(
+                models.Q(site__project_id=project) | models.Q(site__isnull=True)
+            )
+        return qs
+
+
+class SubscriberBoxPortViewSet(viewsets.ModelViewSet):
+    serializer_class = SubscriberBoxPortSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = SubscriberBoxPort.objects.select_related('box').prefetch_related(
+            'connection__panel_port__panel',
+            'connection__device_port__host',
+        )
+        box = self.request.query_params.get('box')
+        if box:
+            qs = qs.filter(box_id=box)
+        return qs
+
+
+class SubscriberBoxConnectionViewSet(viewsets.ModelViewSet):
+    serializer_class = SubscriberBoxConnectionSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        return SubscriberBoxConnection.objects.select_related(
+            'box_port__box', 'panel_port__panel', 'device_port__host',
+        )
+
+
+# ─── PanelPortTemplate views ──────────────────────────────────────────────────
+
+class PanelPortTemplateViewSet(viewsets.ModelViewSet):
+    serializer_class = PanelPortTemplateSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+    queryset = PanelPortTemplate.objects.prefetch_related('entries')
+
+
+class PanelPortTemplateEntryViewSet(viewsets.ModelViewSet):
+    serializer_class = PanelPortTemplateEntrySerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = PanelPortTemplateEntry.objects.select_related('template')
+        tpl = self.request.query_params.get('template')
+        if tpl:
+            qs = qs.filter(template_id=tpl)
         return qs

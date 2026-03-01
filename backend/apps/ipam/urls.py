@@ -28,6 +28,12 @@ router.register(r"rack-units", views.RackUnitViewSet, basename="rackunit")
 router.register(r"site-notes", views.SiteNoteViewSet, basename="sitenote")
 router.register(r"project-notes", views.ProjectNoteViewSet, basename="projectnote")
 
+router.register(r"subscriber-boxes", views.SubscriberBoxViewSet, basename="subscriberbox")
+router.register(r"subscriber-box-ports", views.SubscriberBoxPortViewSet, basename="subscriberboxport")
+router.register(r"subscriber-box-connections", views.SubscriberBoxConnectionViewSet, basename="subscriberboxconnection")
+router.register(r"panel-port-templates", views.PanelPortTemplateViewSet, basename="panelporttemplate")
+router.register(r"panel-port-template-entries", views.PanelPortTemplateEntryViewSet, basename="panelporttemplateentry")
+
 urlpatterns = [
     path("", include(router.urls)),
 ]

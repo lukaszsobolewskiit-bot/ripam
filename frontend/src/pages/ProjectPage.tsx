@@ -7,14 +7,15 @@ import { GeoMap } from '@/components/geo/GeoMap'
 import { ProjectTableView } from '@/components/data/tables/ProjectTableView'
 import { PortConnectionsTopology } from '@/components/topology/PortConnectionsTopology'
 import { PatchPanelView } from '@/components/patchpanel/PatchPanelView'
+import { SubscriberBoxView } from '@/components/patchpanel/SubscriberBoxView'
 
 import { useEffect } from 'react'
 import { useSelectionStore } from '@/stores/selection.store'
 import { cn } from '@/lib/utils'
-import { Network, Map, Table, Cable, Layers } from 'lucide-react'
+import { Network, Map, Table, Cable, Layers, Box } from 'lucide-react'
 
 type MainView = 'topology' | 'geo' | 'table' | 'physical'
-type PhysicalSubView = 'connections' | 'patches'
+type PhysicalSubView = 'connections' | 'patches' | 'boxes'
 
 function parseView(wildcard: string | undefined): { main: MainView; sub: PhysicalSubView } {
   if (!wildcard) return { main: 'topology', sub: 'connections' }
@@ -56,6 +57,7 @@ export function ProjectPage() {
       else if (e.key === '3') navigate(`/projects/${id}/geo`, { replace: true })
       else if (e.key === '4') navigate(`/projects/${id}/physical/connections`, { replace: true })
       else if (e.key === '5') navigate(`/projects/${id}/physical/patches`, { replace: true })
+      else if (e.key === '6') navigate(`/projects/${id}/physical/boxes`, { replace: true })
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
@@ -79,6 +81,7 @@ export function ProjectPage() {
   const physTabs = [
     { key: 'connections' as PhysicalSubView, label: 'Connections', icon: Cable, kbd: '4' },
     { key: 'patches'     as PhysicalSubView, label: 'Patches',     icon: Layers, kbd: '5' },
+    { key: 'boxes'      as PhysicalSubView, label: 'Puszki',      icon: Box,    kbd: '6' },
   ]
 
   return (
@@ -146,6 +149,7 @@ export function ProjectPage() {
         {view === 'table'    && <ProjectTableView projectId={id} />}
         {view === 'physical' && physicalSub === 'connections' && <PortConnectionsTopology projectId={id} />}
         {view === 'physical' && physicalSub === 'patches'     && <PatchPanelView projectId={id} />}
+        {view === 'physical' && physicalSub === 'boxes'      && <SubscriberBoxView projectId={id} />}
       </div>
     </div>
   )

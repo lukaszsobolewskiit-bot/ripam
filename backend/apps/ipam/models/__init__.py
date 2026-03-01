@@ -17,3 +17,5 @@ from .site_file import SiteFile
 from .patch_panel import PatchPanel, PatchPanelPort, PatchPanelConnection
 from .rack import Rack, RackUnit
 from .site_note import SiteNote, ProjectNote
+from .subscriber_box import SubscriberBox, SubscriberBoxPort, SubscriberBoxConnection
+from .panel_port_template import PanelPortTemplate, PanelPortTemplateEntry

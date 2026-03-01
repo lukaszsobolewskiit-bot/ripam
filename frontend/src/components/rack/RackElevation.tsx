@@ -392,20 +392,20 @@ export function RackElevation({ rack, hosts, panels }: Props) {
       <div
         className="rounded-xl overflow-hidden"
         style={{
-          background: '#0f172a',
-          border: '2px solid #334155',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)',
+          background: '#f8fafc',
+          border: '2px solid #cbd5e1',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08), inset 0 1px 0 rgba(255,255,255,0.9)',
         }}
       >
         {/* Górna listwa */}
         <div className="h-5 flex items-center justify-between px-3"
-          style={{ background: 'linear-gradient(180deg, #475569 0%, #334155 100%)', borderBottom: '1px solid #1e293b' }}>
+          style={{ background: 'linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%)', borderBottom: '1px solid #94a3b8' }}>
           <div className="flex gap-2 items-center">
             {[1,2,3,4].map(i => (
-              <div key={i} className="rounded-sm" style={{ width: 8, height: 4, background: '#64748b' }} />
+              <div key={i} className="rounded-sm" style={{ width: 8, height: 4, background: '#94a3b8' }} />
             ))}
           </div>
-          <span style={{ fontSize: 9, color: '#64748b', fontFamily: 'monospace' }}>
+          <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>
             {rack.name}
           </span>
           <div className="flex gap-2 items-center">
@@ -419,7 +419,7 @@ export function RackElevation({ rack, hosts, panels }: Props) {
         <div className="flex">
           {/* Lewa szyna z numerami U */}
           <div className="flex flex-col shrink-0"
-            style={{ width: 32, background: '#1e293b', borderRight: '1px solid #334155' }}>
+            style={{ width: 32, background: '#f1f5f9', borderRight: '1px solid #cbd5e1' }}>
             {rows.map(({ u, unit }) => (
               <div
                 key={u}
@@ -428,8 +428,8 @@ export function RackElevation({ rack, hosts, panels }: Props) {
                   height: (unit?.height_u ?? 1) * U_PX,
                   fontSize: 9,
                   fontFamily: 'monospace',
-                  color: '#475569',
-                  borderBottom: '1px solid #0f172a',
+                  color: '#94a3b8',
+                  borderBottom: '1px solid #e2e8f0',
                 }}
               >
                 {u}
@@ -455,7 +455,7 @@ export function RackElevation({ rack, hosts, panels }: Props) {
                       height: h,
                       background: cfg.bg,
                       borderLeft: `3px solid ${cfg.accent}`,
-                      borderBottom: '1px solid #0f172a',
+                      borderBottom: '1px solid #e2e8f0',
                     }}
                     onMouseEnter={e => showTooltip(unit, e)}
                     onMouseMove={moveTooltip}
@@ -474,7 +474,7 @@ export function RackElevation({ rack, hosts, panels }: Props) {
                     {unit.host_ip && (
                       <span
                         className="text-[9px] font-mono opacity-0 group-hover:opacity-70 transition-opacity shrink-0 pr-5"
-                        style={{ color: '#94a3b8' }}
+                        style={{ color: '#64748b' }}
                       >
                         {unit.host_ip}
                       </span>
@@ -483,7 +483,7 @@ export function RackElevation({ rack, hosts, panels }: Props) {
                     {/* Przycisk usuwania */}
                     <button
                       className="absolute right-1 top-1/2 -translate-y-1/2 w-5 h-5 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      style={{ background: 'rgba(15,23,42,0.85)' }}
+                      style={{ background: 'rgba(248,250,252,0.9)' }}
                       onClick={e => {
                         e.stopPropagation()
                         hideTooltip()
@@ -491,7 +491,7 @@ export function RackElevation({ rack, hosts, panels }: Props) {
                       }}
                       title="Usuń"
                     >
-                      <X className="h-3 w-3" style={{ color: '#94a3b8' }} />
+                      <X className="h-3 w-3" style={{ color: '#64748b' }} />
                     </button>
                   </div>
                 )
@@ -504,18 +504,18 @@ export function RackElevation({ rack, hosts, panels }: Props) {
                   className="group relative flex items-center justify-center shrink-0 cursor-pointer transition-colors"
                   style={{
                     height: h,
-                    borderBottom: '1px solid #0f172a',
+                    borderBottom: '1px solid #e2e8f0',
                   }}
                   onMouseEnter={hideTooltip}
                   onClick={() => setAddAt(u)}
                 >
                   {/* Tło hover */}
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                    style={{ background: 'rgba(51,65,85,0.4)' }} />
+                    style={{ background: 'rgba(241,245,249,0.95)' }} />
                   {/* Ikona + label */}
                   <div className="relative z-10 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Plus className="h-3 w-3" style={{ color: '#475569' }} />
-                    <span style={{ fontSize: 9, color: '#475569', fontFamily: 'monospace' }}>U{u}</span>
+                    <Plus className="h-3 w-3" style={{ color: '#94a3b8' }} />
+                    <span style={{ fontSize: 9, color: '#94a3b8', fontFamily: 'monospace' }}>U{u}</span>
                   </div>
                 </div>
               )
@@ -524,12 +524,12 @@ export function RackElevation({ rack, hosts, panels }: Props) {
 
           {/* Prawa szyna */}
           <div className="shrink-0"
-            style={{ width: 10, background: '#1e293b', borderLeft: '1px solid #334155' }} />
+            style={{ width: 10, background: '#f1f5f9', borderLeft: '1px solid #cbd5e1' }} />
         </div>
 
         {/* Dolna listwa */}
         <div className="h-5 flex items-center px-3"
-          style={{ background: 'linear-gradient(0deg, #475569 0%, #334155 100%)', borderTop: '1px solid #1e293b' }}>
+          style={{ background: 'linear-gradient(0deg, #e2e8f0 0%, #cbd5e1 100%)', borderTop: '1px solid #94a3b8' }}>
           <div className="flex gap-2 items-center">
             {[1,2,3,4].map(i => (
               <div key={i} className="rounded-sm" style={{ width: 8, height: 4, background: '#64748b' }} />

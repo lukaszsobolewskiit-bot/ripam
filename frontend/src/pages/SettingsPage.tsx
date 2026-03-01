@@ -1,10 +1,10 @@
 import { useState, useRef } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi, patchPanelsApi, patchPanelPortsApi, patchPanelConnectionsApi } from '@/api/endpoints'
+import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi, patchPanelsApi, patchPanelPortsApi, patchPanelConnectionsApi, panelPortTemplatesApi, panelPortTemplateEntriesApi } from '@/api/endpoints'
 import { extractApiError } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Download, Upload, AlertTriangle, Trash2, Plus, Pencil, ChevronDown, ChevronRight, Package, Layers } from 'lucide-react'
-import type { DeviceTypeOption, Manufacturer, DeviceModel, PortTemplate, PortType, PatchPanel, PatchPanelPort } from '@/types'
+import type { DeviceTypeOption, Manufacturer, DeviceModel, PortTemplate, PortType, PatchPanel, PatchPanelPort, PanelPortTemplate, PanelPortTemplateEntry } from '@/types'
 
 const PORT_TYPE_OPTIONS: { value: PortType; label: string }[] = [
   { value: 'rj45', label: 'RJ45' },
@@ -16,7 +16,7 @@ const PORT_TYPE_OPTIONS: { value: PortType; label: string }[] = [
 ]
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'patch' | 'backup'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'patch' | 'templates' | 'backup'>('general')
   const [replaceAll, setReplaceAll] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -1407,6 +1407,266 @@ function PatchPanelSection() {
             </div>
           )
         })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Szablony konfiguracji portów ─────────────────────────────────────────────
+
+const PORT_TEMPLATE_MEDIA: { value: string; label: string; color: string }[] = [
+  { value: 'fiber_sc_apc', label: 'Fiber SM — SC/APC', color: '#10b981' },
+  { value: 'fiber_sc_upc', label: 'Fiber SM — SC/UPC', color: '#34d399' },
+  { value: 'fiber_sc_sm',  label: 'Fiber SM — SC',     color: '#fbbf24' },
+  { value: 'fiber_lc_sm',  label: 'Fiber SM — LC',     color: '#f59e0b' },
+  { value: 'fiber_st_sm',  label: 'Fiber SM — ST',     color: '#fcd34d' },
+  { value: 'fiber_fc_sm',  label: 'Fiber SM — FC',     color: '#fde68a' },
+  { value: 'fiber_lc_mm',  label: 'Fiber MM — LC',     color: '#a855f7' },
+  { value: 'fiber_lc_apc', label: 'Fiber MM — LC/APC', color: '#6ee7b7' },
+  { value: 'fiber_sc_mm',  label: 'Fiber MM — SC',     color: '#c084fc' },
+  { value: 'fiber_mpo12',  label: 'Fiber MPO-12',      color: '#ec4899' },
+  { value: 'fiber_mpo24',  label: 'Fiber MPO-24',      color: '#f472b6' },
+  { value: 'fiber_mtp',    label: 'Fiber MTP',         color: '#fb7185' },
+  { value: 'copper',       label: 'Copper — RJ45',     color: '#3b82f6' },
+  { value: 'copper_rj11',  label: 'Copper — RJ11',     color: '#60a5fa' },
+  { value: 'copper_coax',  label: 'Copper — Coax',     color: '#93c5fd' },
+  { value: 'other',        label: 'Inne',              color: '#9ca3af' },
+]
+
+function PortTemplateSection() {
+  const queryClient = useQueryClient()
+  const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [addingTemplate, setAddingTemplate] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newDesc, setNewDesc] = useState('')
+  // Entry form
+  const [addingEntry, setAddingEntry] = useState<number | null>(null) // template id
+  const [entryCount, setEntryCount] = useState(4)
+  const [entryMedia, setEntryMedia] = useState('fiber_sc_apc')
+  const [entryFace, setEntryFace] = useState<'front' | 'back'>('front')
+  const [entryPrefix, setEntryPrefix] = useState('')
+
+  const { data: templates } = useQuery({
+    queryKey: ['panel-port-templates'],
+    queryFn: () => panelPortTemplatesApi.list(),
+    select: r => r.data,
+  })
+
+  const createTemplate = useMutation({
+    mutationFn: () => panelPortTemplatesApi.create({ name: newName.trim(), description: newDesc.trim() }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['panel-port-templates'] })
+      setAddingTemplate(false); setNewName(''); setNewDesc('')
+      toast.success('Szablon utworzony')
+    },
+    onError: () => toast.error('Błąd tworzenia szablonu'),
+  })
+
+  const deleteTemplate = useMutation({
+    mutationFn: (id: number) => panelPortTemplatesApi.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['panel-port-templates'] }); toast.success('Szablon usunięty') },
+  })
+
+  const addEntry = useMutation({
+    mutationFn: (templateId: number) => panelPortTemplateEntriesApi.create({
+      template: templateId, count: entryCount,
+      media_type: entryMedia, face: entryFace,
+      label_prefix: entryPrefix.trim(),
+      sort_order: (templates?.find(t => t.id === templateId)?.entries.length ?? 0),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['panel-port-templates'] })
+      setAddingEntry(null); setEntryCount(4); setEntryMedia('fiber_sc_apc'); setEntryFace('front'); setEntryPrefix('')
+      toast.success('Wpis dodany')
+    },
+    onError: () => toast.error('Błąd dodawania wpisu'),
+  })
+
+  const deleteEntry = useMutation({
+    mutationFn: (id: number) => panelPortTemplateEntriesApi.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['panel-port-templates'] }); toast.success('Wpis usunięty') },
+  })
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <Layers className="h-4 w-4 text-muted-foreground" />
+        <h2 className="text-sm font-semibold">Szablony konfiguracji portów</h2>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Zdefiniuj gotowe zestawy portów dla patch paneli — np. <strong>4×FO SC/APC + 8×FO SC/UPC</strong>. 
+        Szablon pojawi się jako opcja przy tworzeniu nowego panelu.
+      </p>
+
+      {/* Formularz nowego szablonu */}
+      {addingTemplate ? (
+        <div className="rounded-lg border border-dashed border-border p-4 space-y-3 bg-muted/10">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Nowy szablon</p>
+          <div>
+            <label className="text-[10px] text-muted-foreground block mb-0.5">Nazwa szablonu *</label>
+            <input value={newName} onChange={e => setNewName(e.target.value)} autoFocus
+              placeholder="np. 4×FO SC/APC + 8×FO SC/UPC"
+              className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs" />
+          </div>
+          <div>
+            <label className="text-[10px] text-muted-foreground block mb-0.5">Opis (opcjonalny)</label>
+            <input value={newDesc} onChange={e => setNewDesc(e.target.value)}
+              placeholder="Opis zastosowania szablonu…"
+              className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs" />
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => createTemplate.mutate()} disabled={!newName.trim() || createTemplate.isPending}
+              className="flex items-center gap-1 rounded bg-primary px-3 py-1 text-xs text-primary-foreground disabled:opacity-50">
+              <Plus className="h-3 w-3" /> Utwórz
+            </button>
+            <button onClick={() => setAddingTemplate(false)} className="rounded border border-border px-3 py-1 text-xs hover:bg-accent">Anuluj</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setAddingTemplate(true)}
+          className="flex items-center gap-1.5 rounded border border-dashed border-border px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary transition-colors">
+          <Plus className="h-3.5 w-3.5" /> Nowy szablon
+        </button>
+      )}
+
+      {/* Lista szablonów */}
+      <div className="space-y-2">
+        {(!templates || templates.length === 0) && (
+          <p className="text-xs text-muted-foreground italic py-2">Brak szablonów portów.</p>
+        )}
+        {(templates ?? []).map(tpl => (
+          <div key={tpl.id} className="rounded-md border border-border overflow-hidden">
+            {/* Nagłówek szablonu */}
+            <div className="flex items-center gap-2 px-3 py-2.5 bg-muted/10">
+              <button onClick={() => setExpandedId(expandedId === tpl.id ? null : tpl.id)}
+                className="flex items-center gap-2 flex-1 text-left min-w-0">
+                {expandedId === tpl.id
+                  ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                <span className="text-sm font-medium">{tpl.name}</span>
+                {tpl.summary && tpl.summary !== '—' && (
+                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded truncate">{tpl.summary}</span>
+                )}
+              </button>
+              <button onClick={() => { if (window.confirm(`Usunąć szablon "${tpl.name}"?`)) deleteTemplate.mutate(tpl.id) }}
+                className="p-0.5 rounded hover:bg-destructive/20 shrink-0" title="Usuń szablon">
+                <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </div>
+
+            {/* Wpisy szablonu */}
+            {expandedId === tpl.id && (
+              <div className="px-4 pb-4 pt-2 bg-background space-y-2 border-t border-border/30">
+                {/* Tabela wpisów */}
+                {tpl.entries.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-[2rem_1fr_3rem_4rem_auto] gap-2 text-[9px] font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-1">
+                      <span>Ile</span><span>Typ złącza</span><span>Strona</span><span>Prefix</span><span></span>
+                    </div>
+                    {tpl.entries.map(entry => {
+                      const media = PORT_TEMPLATE_MEDIA.find(m => m.value === entry.media_type)
+                      return (
+                        <div key={entry.id}
+                          className="group grid grid-cols-[2rem_1fr_3rem_4rem_auto] gap-2 items-center rounded-md bg-muted/20 hover:bg-muted/40 px-2 py-1.5 text-xs transition-colors">
+                          <span className="font-bold text-foreground">{entry.count}×</span>
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: media?.color ?? '#94a3b8' }} />
+                            <span className="truncate">{entry.media_display.split('—').pop()?.trim() ?? entry.media_type}</span>
+                          </span>
+                          <span className={cn(
+                            'text-[10px] rounded px-1 py-0.5 text-center font-medium',
+                            entry.face === 'front' ? 'bg-blue-500/10 text-blue-600' : 'bg-amber-500/10 text-amber-600',
+                          )}>{entry.face_display}</span>
+                          <span className="font-mono text-muted-foreground truncate">{entry.label_prefix || '—'}</span>
+                          <button onClick={() => deleteEntry.mutate(entry.id)}
+                            className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/20 transition-all">
+                            <Trash2 className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Podsumowanie */}
+                {tpl.entries.length > 0 && (
+                  <div className="flex items-center gap-2 py-1 px-1 text-[10px] text-muted-foreground">
+                    <span>Razem:</span>
+                    <span className="font-semibold text-foreground">
+                      {tpl.entries.reduce((s, e) => s + e.count, 0)} portów
+                    </span>
+                    <span className="ml-2 text-muted-foreground/60">{tpl.summary}</span>
+                  </div>
+                )}
+
+                {/* Formularz nowego wpisu */}
+                {addingEntry === tpl.id ? (
+                  <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 space-y-2 mt-1">
+                    <p className="text-[10px] font-semibold text-muted-foreground">Dodaj grupę portów</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-0.5">Liczba portów</label>
+                        <input type="number" min={1} max={48} value={entryCount}
+                          onChange={e => setEntryCount(Number(e.target.value))}
+                          className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block mb-0.5">Strona montażu</label>
+                        <div className="flex gap-1">
+                          {(['front', 'back'] as const).map(f => (
+                            <button key={f} onClick={() => setEntryFace(f)}
+                              className={cn(
+                                'flex-1 rounded border py-1 text-[10px] transition-colors',
+                                entryFace === f ? 'bg-primary text-primary-foreground border-primary' : 'border-border hover:bg-accent',
+                              )}>
+                              {f === 'front' ? 'Przód' : 'Tył'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block mb-0.5">Typ złącza</label>
+                      <div className="grid grid-cols-2 gap-1 max-h-36 overflow-y-auto">
+                        {PORT_TEMPLATE_MEDIA.map(m => (
+                          <button key={m.value} onClick={() => setEntryMedia(m.value)}
+                            className={cn(
+                              'flex items-center gap-1.5 rounded px-2 py-1.5 text-[10px] text-left border transition-colors',
+                              entryMedia === m.value
+                                ? 'border-primary bg-primary/10 text-primary font-medium'
+                                : 'border-border hover:bg-muted/40',
+                            )}>
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: m.color }} />
+                            {m.label.split('—').pop()?.trim()}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block mb-0.5">Prefix etykiety (opcjonalny, np. FO-)</label>
+                      <input value={entryPrefix} onChange={e => setEntryPrefix(e.target.value)}
+                        placeholder="np. FO- → FO-1, FO-2…"
+                        className="w-full rounded border border-input bg-background px-2 py-1 text-xs" />
+                    </div>
+                    <div className="flex gap-1 justify-end">
+                      <button onClick={() => setAddingEntry(null)} className="px-2 py-1 rounded border border-border text-xs hover:bg-accent">Anuluj</button>
+                      <button onClick={() => addEntry.mutate(tpl.id)} disabled={addEntry.isPending}
+                        className="flex items-center gap-1 rounded bg-primary px-2 py-1 text-xs text-primary-foreground disabled:opacity-50">
+                        <Plus className="h-3 w-3" /> Dodaj grupę
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={() => { setAddingEntry(tpl.id); setEntryCount(4); setEntryMedia('fiber_sc_apc'); setEntryFace('front'); setEntryPrefix('') }}
+                    className="w-full flex items-center justify-center gap-1.5 rounded border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-primary hover:border-primary transition-colors">
+                    <Plus className="h-3 w-3" /> Dodaj grupę portów
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
       </div>
     </div>
   )
