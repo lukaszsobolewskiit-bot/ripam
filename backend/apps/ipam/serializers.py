@@ -12,6 +12,7 @@ from .models import (
     SiteNote, ProjectNote,
     SubscriberBox, SubscriberBoxPort, SubscriberBoxConnection,
     PanelPortTemplate, PanelPortTemplateEntry,
+    PDU, PDUOutlet,
 )
 from .validators import (
     check_ip_duplicate_in_project, check_ip_in_subnet, check_subnet_overlap,
@@ -607,6 +608,48 @@ class ProjectNoteSerializer(serializers.ModelSerializer):
         model = ProjectNote
         fields = ['id', 'project', 'content', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+
+
+# ─── PDU serializers ──────────────────────────────────────────────────────────
+
+class PDUOutletSerializer(serializers.ModelSerializer):
+    rack_unit_label = serializers.SerializerMethodField()
+    rack_unit_type  = serializers.CharField(source='rack_unit.item_type', read_only=True)
+
+    class Meta:
+        model = PDUOutlet
+        fields = ['id', 'pdu', 'outlet_number', 'label', 'rack_unit',
+                  'rack_unit_label', 'rack_unit_type', 'current_a', 'is_on']
+        read_only_fields = ['id', 'rack_unit_label', 'rack_unit_type']
+
+    def get_rack_unit_label(self, obj):
+        if not obj.rack_unit:
+            return None
+        ru = obj.rack_unit
+        return ru.host.hostname if ru.host else (ru.label or f"U{ru.position_u}")
+
+
+class PDUSerializer(serializers.ModelSerializer):
+    outlets = PDUOutletSerializer(many=True, read_only=True)
+    pdu_type_display    = serializers.CharField(source='get_pdu_type_display',    read_only=True)
+    outlet_type_display = serializers.CharField(source='get_outlet_type_display', read_only=True)
+    used_outlets = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PDU
+        fields = [
+            'id', 'rack_unit', 'name', 'pdu_type', 'pdu_type_display',
+            'outlet_type', 'outlet_type_display', 'outlet_count',
+            'max_ampere', 'voltage', 'manufacturer', 'model_name',
+            'serial_number', 'description', 'created_at',
+            'outlets', 'used_outlets',
+        ]
+        read_only_fields = ['id', 'created_at', 'outlets', 'used_outlets',
+                            'pdu_type_display', 'outlet_type_display']
+
+    def get_used_outlets(self, obj):
+        return sum(1 for o in obj.outlets.all() if o.rack_unit_id is not None)
 
 
 # ─── SubscriberBox ────────────────────────────────────────────────────────────

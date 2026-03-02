@@ -34,6 +34,9 @@ router.register(r"subscriber-box-connections", views.SubscriberBoxConnectionView
 router.register(r"panel-port-templates", views.PanelPortTemplateViewSet, basename="panelporttemplate")
 router.register(r"panel-port-template-entries", views.PanelPortTemplateEntryViewSet, basename="panelporttemplateentry")
 
+router.register(r"pdus", views.PDUViewSet, basename="pdu")
+router.register(r"pdu-outlets", views.PDUOutletViewSet, basename="pduoutlet")
+
 urlpatterns = [
     path("", include(router.urls)),
 ]

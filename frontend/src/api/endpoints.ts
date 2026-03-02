@@ -353,6 +353,8 @@ export const rackUnitsApi = {
     apiClient.post<RackUnit>('/rack-units/', data),
   update: (id: number, data: Partial<RackUnit>) =>
     apiClient.patch<RackUnit>(`/rack-units/${id}/`, data),
+  move: (id: number, position_u: number) =>
+    apiClient.post<RackUnit>(`/rack-units/${id}/move/`, { position_u }),
   delete: (id: number) =>
     apiClient.delete(`/rack-units/${id}/`),
 }
@@ -426,5 +428,25 @@ export const panelPortTemplateEntriesApi = {
     apiClient.patch<PanelPortTemplateEntry>(`/panel-port-template-entries/${id}/`, data),
   delete: (id: number) =>
     apiClient.delete(`/panel-port-template-entries/${id}/`),
+}
+
+export const pdusApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<PDU[]>('/pdus/', { params }),
+  get: (id: number) =>
+    apiClient.get<PDU>(`/pdus/${id}/`),
+  create: (data: Partial<PDU> & { rack_unit: number }) =>
+    apiClient.post<PDU>('/pdus/', data),
+  update: (id: number, data: Partial<PDU>) =>
+    apiClient.patch<PDU>(`/pdus/${id}/`, data),
+  delete: (id: number) =>
+    apiClient.delete(`/pdus/${id}/`),
+}
+
+export const pduOutletsApi = {
+  list: (params?: Record<string, string>) =>
+    apiClient.get<PDUOutlet[]>('/pdu-outlets/', { params }),
+  update: (id: number, data: Partial<PDUOutlet>) =>
+    apiClient.patch<PDUOutlet>(`/pdu-outlets/${id}/`, data),
 }
 

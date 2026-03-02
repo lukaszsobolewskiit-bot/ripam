@@ -19,6 +19,7 @@ from .models import (
     SiteNote, ProjectNote,
     SubscriberBox, SubscriberBoxPort, SubscriberBoxConnection,
     PanelPortTemplate, PanelPortTemplateEntry,
+    PDU, PDUOutlet,
 )
 from .permissions import IsAdmin, ProjectPermission
 from .serializers import (
@@ -31,6 +32,7 @@ from .serializers import (
     SiteNoteSerializer, ProjectNoteSerializer,
     SubscriberBoxSerializer, SubscriberBoxPortSerializer, SubscriberBoxConnectionSerializer,
     PanelPortTemplateSerializer, PanelPortTemplateEntrySerializer,
+    PDUSerializer, PDUOutletSerializer,
 )
 
 
@@ -644,6 +646,40 @@ class RackUnitViewSet(viewsets.ModelViewSet):
             qs = qs.filter(rack_id=rack)
         return qs
 
+    @action(detail=True, methods=['post'])
+    def move(self, request, pk=None):
+        """Atomowe przesunięcie urządzenia na nową pozycję w szafie."""
+        from django.db import transaction
+        unit = self.get_object()
+        new_pos = request.data.get('position_u')
+        if new_pos is None:
+            return Response({'error': 'position_u required'}, status=400)
+        new_pos = int(new_pos)
+        rack = unit.rack
+
+        if new_pos < 1 or new_pos + unit.height_u - 1 > rack.height_u:
+            return Response({'error': 'Pozycja poza zakresem szafy'}, status=400)
+
+        # Sprawdź kolizje (pomiń self)
+        conflicts = RackUnit.objects.filter(
+            rack=rack, face=unit.face,
+        ).exclude(pk=unit.pk)
+
+        occupied = set()
+        for other in conflicts:
+            for i in range(other.height_u):
+                occupied.add(other.position_u + i)
+
+        needed = set(range(new_pos, new_pos + unit.height_u))
+        if occupied & needed:
+            return Response({'error': 'Slot zajęty przez inne urządzenie'}, status=400)
+
+        with transaction.atomic():
+            unit.position_u = new_pos
+            unit.save(update_fields=['position_u'])
+
+        return Response(RackUnitSerializer(unit).data)
+
 
 # ─── Site / Project Note views ────────────────────────────────────────────────
 
@@ -672,6 +708,50 @@ class ProjectNoteViewSet(viewsets.ModelViewSet):
         project = self.request.query_params.get('project')
         if project:
             qs = qs.filter(project_id=project)
+        return qs
+
+
+
+# ─── PDU views ────────────────────────────────────────────────────────────────
+
+class PDUViewSet(viewsets.ModelViewSet):
+    serializer_class = PDUSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = PDU.objects.prefetch_related(
+            'outlets__rack_unit__host',
+        ).select_related('rack_unit__rack')
+        rack = self.request.query_params.get('rack')
+        rack_unit = self.request.query_params.get('rack_unit')
+        if rack:
+            qs = qs.filter(rack_unit__rack_id=rack)
+        if rack_unit:
+            qs = qs.filter(rack_unit_id=rack_unit)
+        return qs
+
+    def perform_create(self, serializer):
+        pdu = serializer.save()
+        # Auto-create outlets
+        PDUOutlet.objects.bulk_create([
+            PDUOutlet(pdu=pdu, outlet_number=i + 1)
+            for i in range(pdu.outlet_count)
+        ])
+
+
+class PDUOutletViewSet(viewsets.ModelViewSet):
+    serializer_class = PDUOutletSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = None
+
+    def get_queryset(self):
+        qs = PDUOutlet.objects.select_related(
+            'pdu', 'rack_unit__host', 'rack_unit__rack',
+        )
+        pdu = self.request.query_params.get('pdu')
+        if pdu:
+            qs = qs.filter(pdu_id=pdu)
         return qs
 
 

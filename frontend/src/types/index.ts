@@ -150,6 +150,39 @@ export interface SiteFile {
 
 
 
+
+export interface PDUOutlet {
+  id: number
+  pdu: number
+  outlet_number: number
+  label: string
+  rack_unit: number | null
+  rack_unit_label: string | null
+  rack_unit_type: string | null
+  current_a: string | null
+  is_on: boolean
+}
+
+export interface PDU {
+  id: number
+  rack_unit: number
+  name: string
+  pdu_type: string
+  pdu_type_display: string
+  outlet_type: string
+  outlet_type_display: string
+  outlet_count: number
+  max_ampere: number
+  voltage: number
+  manufacturer: string
+  model_name: string
+  serial_number: string
+  description: string
+  created_at: string
+  outlets: PDUOutlet[]
+  used_outlets: number
+}
+
 export interface SubscriberBoxPort {
   id: number
   box: number
