@@ -16,7 +16,7 @@ export const authApi = {
   disable2fa: (password: string, totp_code: string) =>
     apiClient.post('/auth/2fa/disable/', { password, totp_code }),
   adminDisable2fa: (userId: number) =>
-    apiClient.post(\`/auth/2fa/admin-disable/\${userId}/\`),
+    apiClient.post(`/auth/2fa/admin-disable/${userId}/`),
 }
 
 // Projects
