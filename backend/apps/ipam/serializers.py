@@ -464,7 +464,7 @@ class PatchPanelPortSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PatchPanelPort
-        fields = ['id', 'panel', 'port_number', 'label', 'label_display', 'device_port_info']
+        fields = ['id', 'panel', 'port_number', 'label', 'label_display', 'back_media_type', 'device_port_info']
         read_only_fields = ['id', 'label_display', 'device_port_info']
 
     def get_label_display(self, obj):

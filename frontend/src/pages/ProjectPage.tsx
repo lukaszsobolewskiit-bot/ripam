@@ -28,7 +28,7 @@ function parseView(wildcard: string | undefined): { main: MainView; sub: Physica
     return { main: 'topology', sub: 'connections' }
   }
   const sub = (second as PhysicalSubView) ?? 'connections'
-  return { main, sub: ['connections', 'patches'].includes(sub) ? sub : 'connections' }
+  return { main, sub: ['connections', 'patches', 'boxes'].includes(sub) ? sub as PhysicalSubView : 'connections' }
 }
 
 export function ProjectPage() {
