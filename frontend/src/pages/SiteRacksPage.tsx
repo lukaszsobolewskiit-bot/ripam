@@ -256,7 +256,7 @@ export function SiteRacksPage() {
         /* ── Elevation view ── */
         <div className="flex-1 overflow-y-auto p-4">
           {/* Racks grid */}
-          <div className="flex gap-6 flex-wrap">
+          <div className="flex gap-6 flex-wrap items-start">
             {pagedRacks.map(rack => (
               <div key={rack.id} className="flex flex-col gap-2">
                 {/* Per-rack controls */}

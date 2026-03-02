@@ -562,11 +562,7 @@ export function RackElevation({ rack, hosts, panels }: Props) {
           </div>
           <span className="text-[10px] font-mono text-muted-foreground w-7 text-right">{Math.round(utilPct)}%</span>
         </div>
-        {rack.rack_units.length > 0 && (
-          <p className="text-[10px] text-muted-foreground/50 flex items-center gap-1 select-none">
-            <GripVertical className="h-3 w-3"/> Przeciągnij aby zmienić pozycję
-          </p>
-        )}
+
       </div>
 
       {/* ── Szafa ── */}

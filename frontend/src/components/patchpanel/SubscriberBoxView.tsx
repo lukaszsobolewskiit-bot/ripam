@@ -325,6 +325,12 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
 
   const connected = box.ports.filter(p => !!p.connection_info).length
 
+  // Skalowanie szerokości — im więcej portów tym szersze pole portów
+  // Każdy port ~36px szerokości + padding; minimalna szerokość dla 8 portów
+  const maxPortsInRow = Math.max(trunkPorts.length, dropPorts.length, 1)
+  // Obliczamy sugerowaną min-width dla sekcji portów: ~36px/port + 24px padding
+  const portsSectionMinW = Math.min(Math.max(maxPortsInRow * 36 + 24, 280), 960)
+
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
       {/* Nagłówek — identyczny styl jak PanelRack */}
@@ -381,7 +387,7 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
       {/* Ciało — identyczne z PanelRack */}
       {expanded && (
         <div className="border-t border-border/30">
-          <div className="rounded-lg overflow-hidden border border-border/50 bg-muted/5 m-3">
+          <div className="rounded-lg overflow-hidden border border-border/50 bg-muted/5 m-3" style={{ minWidth: portsSectionMinW }}>
             {renderSection(trunkPorts, 'trunk')}
             <div className="mx-2 h-px bg-border/40 flex items-center justify-center">
               <span className="text-[8px] text-muted-foreground/40 bg-card px-2">puszka</span>

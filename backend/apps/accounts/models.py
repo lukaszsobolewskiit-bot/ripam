@@ -9,6 +9,8 @@ class User(AbstractUser):
         VIEWER = "viewer", "Viewer"
 
     role = models.CharField(max_length=10, choices=Role.choices, default=Role.VIEWER)
+    totp_secret  = models.CharField(max_length=64, blank=True, default='')
+    totp_enabled = models.BooleanField(default=False)
 
     class Meta:
         db_table = "accounts_user"

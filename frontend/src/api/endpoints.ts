@@ -7,10 +7,16 @@ import apiClient from './client'
 
 // Auth
 export const authApi = {
-  login: (username: string, password: string) =>
-    apiClient.post<User>('/auth/login/', { username, password }),
+  login: (username: string, password: string, totp_code?: string) =>
+    apiClient.post<User & { totp_required?: boolean }>('/auth/login/', { username, password, totp_code }),
   logout: () => apiClient.post('/auth/logout/'),
   me: () => apiClient.get<User>('/auth/me/'),
+  setup2fa: () => apiClient.get<{ secret: string; uri: string }>('/auth/2fa/setup/'),
+  confirm2fa: (code: string) => apiClient.post('/auth/2fa/setup/', { code }),
+  disable2fa: (password: string, totp_code: string) =>
+    apiClient.post('/auth/2fa/disable/', { password, totp_code }),
+  adminDisable2fa: (userId: number) =>
+    apiClient.post(\`/auth/2fa/admin-disable/\${userId}/\`),
 }
 
 // Projects

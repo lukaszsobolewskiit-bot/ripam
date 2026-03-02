@@ -151,18 +151,49 @@ function PortSquare({ port, side, color, onConnect, onDisconnect, onHover, onLea
 
 // ─── Panel rack ───────────────────────────────────────────────────────────────
 
+// Liczba portów per wiersz: ≤12 → 12, ≤24 → 24, ≤48 → 24, >48 → 24
+const PORTS_PER_ROW = 24
+
 function PanelRack({ panel, allPanels, projectId, onConnect, onDisconnect }: {
   panel: PatchPanel; allPanels: PatchPanel[]; projectId: number
   onConnect: (port: PatchPanelPort, side: 'front' | 'back') => void
   onDisconnect: (id: number) => void
 }) {
+  const qc = useQueryClient()
   const [expanded, setExpanded] = useState(true)
   const [tooltip, setTooltip]   = useState<{ port: PatchPanelPort; side: 'front'|'back'; x: number; y: number } | null>(null)
+  const [addingPort, setAddingPort]     = useState(false)
+  const [newPortLabel, setNewPortLabel] = useState('')
+  const [newPortMedia, setNewPortMedia] = useState('same')
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const meta      = MEDIA_META[panel.media_type] ?? MEDIA_META.copper
   const frontUsed = panel.ports.filter(p => !!p.device_port_info?.host_name).length
   const backUsed  = panel.ports.filter(p => !!p.device_port_info?.far_panel_name).length
+
+  const addPortMut = useMutation({
+    mutationFn: () => {
+      const nextNum = panel.ports.length > 0 ? Math.max(...panel.ports.map(p => p.port_number)) + 1 : 1
+      return patchPanelPortsApi.create({
+        panel: panel.id,
+        port_number: nextNum,
+        label: newPortLabel.trim(),
+        back_media_type: newPortMedia as PatchPanelPort['back_media_type'],
+      })
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['patch-panels'] })
+      setAddingPort(false); setNewPortLabel(''); setNewPortMedia('same')
+      toast.success('Port dodany')
+    },
+    onError: () => toast.error('Błąd dodawania portu'),
+  })
+
+  const deletePortMut = useMutation({
+    mutationFn: (id: number) => patchPanelPortsApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patch-panels'] }); toast.success('Port usunięty') },
+    onError:   () => toast.error('Nie można usunąć — port jest połączony'),
+  })
 
   const showTT = (port: PatchPanelPort, side: 'front'|'back', e: React.MouseEvent) => {
     if (timer.current) clearTimeout(timer.current)
@@ -170,8 +201,10 @@ function PanelRack({ panel, allPanels, projectId, onConnect, onDisconnect }: {
   }
   const hideTT = () => { if (timer.current) clearTimeout(timer.current); setTooltip(null) }
 
+  // Skalowanie: dobieramy rozmiar wiersza do liczby portów
+  const portsPerRow = panel.ports.length <= 12 ? 12 : PORTS_PER_ROW
   const rows: PatchPanelPort[][] = []
-  for (let i = 0; i < panel.ports.length; i += 24) rows.push(panel.ports.slice(i, i + 24))
+  for (let i = 0; i < panel.ports.length; i += portsPerRow) rows.push(panel.ports.slice(i, i + portsPerRow))
 
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
@@ -210,7 +243,7 @@ function PanelRack({ panel, allPanels, projectId, onConnect, onDisconnect }: {
             <div key={ri} className="rounded-lg overflow-hidden border border-border/50 bg-muted/5">
               {rows.length > 1 && (
                 <div className="px-2 py-0.5 text-[9px] text-muted-foreground/60 font-mono border-b border-border/30">
-                  Porty {ri*24+1}–{Math.min((ri+1)*24, panel.port_count)}
+                  Porty {ri * portsPerRow + 1}–{Math.min((ri + 1) * portsPerRow, panel.ports.length)}
                 </div>
               )}
               {/* Przód */}
@@ -218,7 +251,7 @@ function PanelRack({ panel, allPanels, projectId, onConnect, onDisconnect }: {
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <ArrowRight className="h-3 w-3 shrink-0" style={{ color: meta.color }}/>
                   <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: meta.color }}>Przód — urządzenia</span>
-                  <div className="flex-1 h-px ml-1" style={{ backgroundColor: meta.color+'30' }}/>
+                  <div className="flex-1 h-px ml-1" style={{ backgroundColor: meta.color + '30' }}/>
                 </div>
                 <div className="flex flex-wrap gap-1">
                   {row.map(port => (
@@ -255,6 +288,63 @@ function PanelRack({ panel, allPanels, projectId, onConnect, onDisconnect }: {
               </div>
             </div>
           ))}
+
+          {/* Dodaj port — inline formularz */}
+          {addingPort ? (
+            <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 space-y-3">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Nowy port #{panel.ports.length + 1}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-0.5">Złącze tył</label>
+                  <select value={newPortMedia} onChange={e => setNewPortMedia(e.target.value)}
+                    className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs">
+                    <option value="same">= Taki sam jak przód ({meta.short})</option>
+                    <optgroup label="Copper">
+                      <option value="copper">RJ45</option>
+                      <option value="copper_rj11">RJ11</option>
+                    </optgroup>
+                    <optgroup label="Fiber SM">
+                      <option value="fiber_sc_apc">SC/APC</option>
+                      <option value="fiber_sc_upc">SC/UPC</option>
+                      <option value="fiber_sc_sm">SC SM</option>
+                      <option value="fiber_lc_sm">LC SM</option>
+                      <option value="fiber_st_sm">ST SM</option>
+                      <option value="fiber_fc_sm">FC SM</option>
+                    </optgroup>
+                    <optgroup label="Fiber MM">
+                      <option value="fiber_lc_mm">LC MM</option>
+                      <option value="fiber_sc_mm">SC MM</option>
+                    </optgroup>
+                    <optgroup label="MTP/MPO">
+                      <option value="fiber_mpo12">MPO-12</option>
+                      <option value="fiber_mpo24">MPO-24</option>
+                    </optgroup>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-0.5">Etykieta (opcjonalna)</label>
+                  <input value={newPortLabel} onChange={e => setNewPortLabel(e.target.value)}
+                    placeholder={`np. P${panel.ports.length + 1}`}
+                    onKeyDown={e => { if (e.key === 'Enter') addPortMut.mutate(); if (e.key === 'Escape') setAddingPort(false) }}
+                    className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setAddingPort(false)} className="px-3 py-1.5 rounded border border-border text-xs hover:bg-accent">Anuluj</button>
+                <button onClick={() => addPortMut.mutate()} disabled={addPortMut.isPending}
+                  className="flex items-center gap-1 rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50">
+                  <Plus className="h-3 w-3"/> Dodaj port
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setAddingPort(true)}
+              className="w-full flex items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 py-2 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-colors">
+              <Plus className="h-3.5 w-3.5"/> Dodaj port
+            </button>
+          )}
         </div>
       )}
 
