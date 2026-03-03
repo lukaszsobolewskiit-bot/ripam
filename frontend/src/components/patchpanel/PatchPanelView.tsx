@@ -111,9 +111,10 @@ function PortTooltip({ port, side, panelColor, x, y }: {
 
 // ─── Port kwadrat ─────────────────────────────────────────────────────────────
 
-function PortSquare({ port, side, color, onConnect, onDisconnect, onHover, onLeave }: {
+function PortSquare({ port, side, color, onConnect, onDisconnect, onDeletePort, onHover, onLeave }: {
   port: PatchPanelPort; side: 'front' | 'back'; color: string
   onConnect: () => void; onDisconnect: (id: number) => void
+  onDeletePort: () => void
   onHover: (e: React.MouseEvent) => void; onLeave: () => void
 }) {
   const info  = port.device_port_info
@@ -143,6 +144,14 @@ function PortSquare({ port, side, color, onConnect, onDisconnect, onHover, onLea
         <button
           className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-white hidden group-hover:flex items-center justify-center shadow-sm z-10"
           onClick={e => { e.stopPropagation(); onDisconnect(info.connection_id) }}
+        ><X className="h-2.5 w-2.5"/></button>
+      )}
+      {/* Usuń port — widoczny tylko dla wolnych portów przy hover */}
+      {!occ && (
+        <button
+          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white hidden group-hover:flex items-center justify-center shadow-sm z-10"
+          onClick={e => { e.stopPropagation(); onDeletePort() }}
+          title="Usuń port"
         ><X className="h-2.5 w-2.5"/></button>
       )}
     </div>
@@ -258,6 +267,10 @@ function PanelRack({ panel, allPanels, projectId, onConnect, onDisconnect }: {
                     <PortSquare key={`f-${port.id}`} port={port} side="front" color={meta.color}
                       onConnect={() => onConnect(port, 'front')}
                       onDisconnect={onDisconnect}
+                      onDeletePort={() => {
+                        if (window.confirm(`Usunąć port ${port.port_number}${port.label ? ` (${port.label})` : ''}?`))
+                          deletePortMut.mutate(port.id)
+                      }}
                       onHover={e => showTT(port, 'front', e)}
                       onLeave={hideTT}
                     />
@@ -280,6 +293,10 @@ function PanelRack({ panel, allPanels, projectId, onConnect, onDisconnect }: {
                     <PortSquare key={`b-${port.id}`} port={port} side="back" color={meta.color}
                       onConnect={() => onConnect(port, 'back')}
                       onDisconnect={onDisconnect}
+                      onDeletePort={() => {
+                        if (window.confirm(`Usunąć port ${port.port_number}${port.label ? ` (${port.label})` : ''}?`))
+                          deletePortMut.mutate(port.id)
+                      }}
                       onHover={e => showTT(port, 'back', e)}
                       onLeave={hideTT}
                     />

@@ -84,10 +84,11 @@ function PortTooltip({ port, panelName, x, y }: {
 
 // ─── Port kwadrat ─────────────────────────────────────────────────────────────
 
-function BoxPortSquare({ port, onConnect, onDisconnect, onHover, onLeave }: {
+function BoxPortSquare({ port, onConnect, onDisconnect, onDeletePort, onHover, onLeave }: {
   port: SubscriberBoxPort
   onConnect: () => void
   onDisconnect: () => void
+  onDeletePort: () => void
   onHover: (e: React.MouseEvent) => void
   onLeave: () => void
 }) {
@@ -113,10 +114,19 @@ function BoxPortSquare({ port, onConnect, onDisconnect, onHover, onLeave }: {
         <div className="rounded-sm" style={{ width: 8, height: 5, backgroundColor: occ ? color : '#cbd5e1' }}/>
       </div>
       {occ && <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }}/>}
+      {/* Rozłącz — tylko zajęte porty */}
       {occ && (
         <button
           className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-white hidden group-hover:flex items-center justify-center shadow-sm z-10"
           onClick={e => { e.stopPropagation(); onDisconnect() }}
+        ><X className="h-2.5 w-2.5"/></button>
+      )}
+      {/* Usuń port — tylko wolne porty */}
+      {!occ && (
+        <button
+          className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-rose-500 text-white hidden group-hover:flex items-center justify-center shadow-sm z-10"
+          onClick={e => { e.stopPropagation(); onDeletePort() }}
+          title="Usuń port"
         ><X className="h-2.5 w-2.5"/></button>
       )}
     </div>
@@ -217,9 +227,13 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
   const [expanded, setExpanded]       = useState(true)
   const [connectPort, setConnectPort] = useState<SubscriberBoxPort | null>(null)
   const [tooltip, setTooltip]         = useState<{ port: SubscriberBoxPort; x: number; y: number } | null>(null)
-  const [addingPort, setAddingPort]   = useState<'trunk' | 'drop' | null>(null)
-  const [newPortLabel, setNewPortLabel] = useState('')
-  const [newPortMedia, setNewPortMedia] = useState('fiber_sc_apc')
+  // Nowy formularz portów — trunk+drop jednocześnie
+  const [addingPorts, setAddingPorts]   = useState(false)
+  const [trunkLabel, setTrunkLabel]     = useState('')
+  const [trunkMedia, setTrunkMedia]     = useState('fiber_sc_apc')
+  const [dropLabel, setDropLabel]       = useState('')
+  const [dropMedia, setDropMedia]       = useState('fiber_sc_apc')
+  const [addBoth, setAddBoth]           = useState(true) // czy dodawać obydwa na raz
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const trunkPorts = box.ports.filter(p => p.direction === 'trunk')
@@ -229,18 +243,32 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
     mutationFn: (connId: number) => subscriberBoxConnectionsApi.delete(connId),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['subscriber-boxes'] }); toast.success('Rozłączono') },
   })
-  const addPortMut = useMutation({
-    mutationFn: (dir: 'trunk' | 'drop') => {
-      const portsInDir = box.ports.filter(p => p.direction === dir)
-      const nextNum    = portsInDir.length > 0 ? Math.max(...portsInDir.map(p => p.port_number)) + 1 : 1
-      return subscriberBoxPortsApi.create({ box: box.id, direction: dir, port_number: nextNum, media_type: newPortMedia, label: newPortLabel.trim() })
+
+  const deletePortMut = useMutation({
+    mutationFn: (id: number) => subscriberBoxPortsApi.delete(id),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['subscriber-boxes'] }); toast.success('Port usunięty') },
+    onError:   () => toast.error('Nie można usunąć — port jest połączony'),
+  })
+
+  const addPortsMut = useMutation({
+    mutationFn: async () => {
+      const trunkNum = trunkPorts.length > 0 ? Math.max(...trunkPorts.map(p => p.port_number)) + 1 : 1
+      const dropNum  = dropPorts.length  > 0 ? Math.max(...dropPorts.map(p => p.port_number))  + 1 : 1
+      if (addBoth) {
+        await subscriberBoxPortsApi.create({ box: box.id, direction: 'trunk', port_number: trunkNum, media_type: trunkMedia, label: trunkLabel.trim() })
+        await subscriberBoxPortsApi.create({ box: box.id, direction: 'drop',  port_number: dropNum,  media_type: dropMedia,  label: dropLabel.trim() })
+      } else {
+        // Tylko trunk jeśli addBoth=false (fallback — normalnie nie używane)
+        await subscriberBoxPortsApi.create({ box: box.id, direction: 'trunk', port_number: trunkNum, media_type: trunkMedia, label: trunkLabel.trim() })
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['subscriber-boxes'] })
-      setAddingPort(null); setNewPortLabel(''); setNewPortMedia('fiber_sc_apc')
-      toast.success('Port dodany')
+      setAddingPorts(false); setTrunkLabel(''); setDropLabel('')
+      setTrunkMedia('fiber_sc_apc'); setDropMedia('fiber_sc_apc')
+      toast.success(addBoth ? 'Dodano port trunk i drop' : 'Port dodany')
     },
-    onError: () => toast.error('Błąd'),
+    onError: () => toast.error('Błąd dodawania portów'),
   })
 
   const showTT = (port: SubscriberBoxPort, e: React.MouseEvent) => {
@@ -254,7 +282,7 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
     return panels.find(pan => pan.ports.some(pp => pp.id === p.connection_info?.panel_port_id))?.name
   }
 
-  // Sekcja portów — identyczna z PatchPanelView
+  // Sekcja portów
   const renderSection = (ports: SubscriberBoxPort[], dir: 'trunk' | 'drop') => {
     const color = dir === 'trunk' ? '#3b82f6' : '#10b981'
     const Icon  = dir === 'trunk' ? ArrowDownToLine : ArrowUpFromLine
@@ -268,10 +296,6 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
           <span className="text-[9px] font-semibold uppercase tracking-wider" style={{ color }}>{label}</span>
           <span className="text-[9px] text-muted-foreground ml-1">{used}/{ports.length}</span>
           <div className="flex-1 h-px ml-1" style={{ backgroundColor: color + '30' }}/>
-          <button onClick={() => { setAddingPort(dir); setNewPortLabel(''); setNewPortMedia('fiber_sc_apc') }}
-            className="flex items-center gap-0.5 text-[9px] text-muted-foreground hover:text-primary transition-colors ml-1">
-            <Plus className="h-2.5 w-2.5"/> port
-          </button>
         </div>
         {ports.length > 0 && (
           <div className="flex flex-wrap gap-1">
@@ -279,8 +303,12 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
               <BoxPortSquare key={port.id} port={port}
                 onConnect={() => setConnectPort(port)}
                 onDisconnect={() => {
-                  if (port.connection_info && window.confirm('Rozłączyć?'))
+                  if (port.connection_info && window.confirm('Rozłączyć port?'))
                     disconnectMut.mutate(port.connection_info.connection_id)
+                }}
+                onDeletePort={() => {
+                  if (window.confirm(`Usunąć port ${port.port_number}${port.label ? ` (${port.label})` : ''}?`))
+                    deletePortMut.mutate(port.id)
                 }}
                 onHover={e => showTT(port, e)}
                 onLeave={hideTT}
@@ -288,52 +316,20 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
             ))}
           </div>
         )}
-        {addingPort === dir && (
-          <div className="mt-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-2 space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[9px] text-muted-foreground block mb-0.5">Typ złącza</label>
-                <select value={newPortMedia} onChange={e => setNewPortMedia(e.target.value)}
-                  className="w-full rounded border border-input bg-background px-1.5 py-1 text-[10px]">
-                  {MEDIA_OPTS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[9px] text-muted-foreground block mb-0.5">Etykieta</label>
-                <input value={newPortLabel} onChange={e => setNewPortLabel(e.target.value)}
-                  placeholder="np. Mieszk. 3"
-                  onKeyDown={e => { if (e.key === 'Enter') addPortMut.mutate(dir); if (e.key === 'Escape') setAddingPort(null) }}
-                  className="w-full rounded border border-input bg-background px-1.5 py-1 text-[10px]"
-                  autoFocus/>
-              </div>
-            </div>
-            <div className="flex gap-1 justify-end">
-              <button onClick={() => setAddingPort(null)} className="px-2 py-0.5 rounded border border-border text-[10px] hover:bg-accent">Anuluj</button>
-              <button onClick={() => addPortMut.mutate(dir)} disabled={addPortMut.isPending}
-                className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-[10px] text-primary-foreground disabled:opacity-50">
-                <Plus className="h-2.5 w-2.5"/> Dodaj
-              </button>
-            </div>
-          </div>
-        )}
-        {ports.length === 0 && addingPort !== dir && (
-          <p className="text-[10px] text-muted-foreground/50 py-1 pl-1">Brak portów — kliknij „+ port"</p>
+        {ports.length === 0 && !addingPorts && (
+          <p className="text-[10px] text-muted-foreground/50 py-1 pl-1">Brak portów — kliknij „+ Dodaj port"</p>
         )}
       </div>
     )
   }
 
   const connected = box.ports.filter(p => !!p.connection_info).length
-
-  // Skalowanie szerokości — im więcej portów tym szersze pole portów
-  // Każdy port ~36px szerokości + padding; minimalna szerokość dla 8 portów
   const maxPortsInRow = Math.max(trunkPorts.length, dropPorts.length, 1)
-  // Obliczamy sugerowaną min-width dla sekcji portów: ~36px/port + 24px padding
   const portsSectionMinW = Math.min(Math.max(maxPortsInRow * 36 + 24, 280), 960)
 
   return (
     <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      {/* Nagłówek — identyczny styl jak PanelRack */}
+      {/* Nagłówek */}
       <button
         className="w-full flex items-center gap-3 px-4 py-2.5 bg-muted/20 hover:bg-muted/30 transition-colors text-left"
         onClick={() => setExpanded(e => !e)}
@@ -342,12 +338,10 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
           ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground"/>
           : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground"/>
         }
-        {/* Ikona puszki */}
         <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
           style={{ backgroundColor: '#8b5cf622', border: '1.5px solid #8b5cf655' }}>
           <Box className="h-4 w-4" style={{ color: '#8b5cf6' }}/>
         </div>
-        {/* Metadane */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm">{box.name}</span>
@@ -371,7 +365,6 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
             <span>· {connected} połączonych</span>
           </div>
         </div>
-        {/* Pasy wykorzystania — jak w PanelRack */}
         <div className="w-20 shrink-0 hidden sm:block space-y-1">
           {[
             { v: trunkPorts.filter(p => !!p.connection_info).length, t: box.trunk_count, c: '#3b82f6' },
@@ -384,7 +377,7 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
         </div>
       </button>
 
-      {/* Ciało — identyczne z PanelRack */}
+      {/* Ciało */}
       {expanded && (
         <div className="border-t border-border/30">
           <div className="rounded-lg overflow-hidden border border-border/50 bg-muted/5 m-3" style={{ minWidth: portsSectionMinW }}>
@@ -393,6 +386,88 @@ function BoxCard({ box, panels }: { box: SubscriberBox; panels: PatchPanel[] }) 
               <span className="text-[8px] text-muted-foreground/40 bg-card px-2">puszka</span>
             </div>
             {renderSection(dropPorts, 'drop')}
+
+            {/* Formularz dodawania portów — trunk + drop jednocześnie */}
+            {addingPorts ? (
+              <div className="m-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Nowy port</p>
+                  {/* Toggle: oba / tylko jeden */}
+                  <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer select-none">
+                    <input type="checkbox" checked={addBoth} onChange={e => setAddBoth(e.target.checked)}
+                      className="rounded border-border w-3 h-3"/>
+                    Trunk + Drop jednocześnie
+                  </label>
+                </div>
+
+                {/* Trunk */}
+                <div className="rounded-md border border-blue-200 dark:border-blue-900 bg-blue-500/5 p-2 space-y-2">
+                  <div className="flex items-center gap-1.5">
+                    <ArrowDownToLine className="h-3 w-3 text-blue-500 shrink-0"/>
+                    <span className="text-[9px] font-semibold text-blue-600 uppercase tracking-wider">Trunk (wejście)</span>
+                    <span className="text-[9px] text-muted-foreground ml-1">#{trunkPorts.length + 1}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9px] text-muted-foreground block mb-0.5">Typ złącza</label>
+                      <select value={trunkMedia} onChange={e => setTrunkMedia(e.target.value)}
+                        className="w-full rounded border border-input bg-background px-1.5 py-1 text-[10px]">
+                        {MEDIA_OPTS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-muted-foreground block mb-0.5">Etykieta</label>
+                      <input value={trunkLabel} onChange={e => setTrunkLabel(e.target.value)}
+                        placeholder="np. ISP-1"
+                        className="w-full rounded border border-input bg-background px-1.5 py-1 text-[10px]"
+                        autoFocus/>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Drop — widoczny tylko gdy addBoth=true */}
+                {addBoth && (
+                  <div className="rounded-md border border-emerald-200 dark:border-emerald-900 bg-emerald-500/5 p-2 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <ArrowUpFromLine className="h-3 w-3 text-emerald-500 shrink-0"/>
+                      <span className="text-[9px] font-semibold text-emerald-600 uppercase tracking-wider">Drop (abonent)</span>
+                      <span className="text-[9px] text-muted-foreground ml-1">#{dropPorts.length + 1}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[9px] text-muted-foreground block mb-0.5">Typ złącza</label>
+                        <select value={dropMedia} onChange={e => setDropMedia(e.target.value)}
+                          className="w-full rounded border border-input bg-background px-1.5 py-1 text-[10px]">
+                          {MEDIA_OPTS.map(m => <option key={m.v} value={m.v}>{m.l}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[9px] text-muted-foreground block mb-0.5">Etykieta</label>
+                        <input value={dropLabel} onChange={e => setDropLabel(e.target.value)}
+                          placeholder="np. Mieszk. 3"
+                          onKeyDown={e => { if (e.key === 'Enter') addPortsMut.mutate(); if (e.key === 'Escape') setAddingPorts(false) }}
+                          className="w-full rounded border border-input bg-background px-1.5 py-1 text-[10px]"/>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-1 justify-end">
+                  <button onClick={() => setAddingPorts(false)}
+                    className="px-2 py-0.5 rounded border border-border text-[10px] hover:bg-accent">Anuluj</button>
+                  <button onClick={() => addPortsMut.mutate()} disabled={addPortsMut.isPending}
+                    className="flex items-center gap-1 rounded bg-primary px-2 py-0.5 text-[10px] text-primary-foreground disabled:opacity-50">
+                    <Plus className="h-2.5 w-2.5"/>
+                    {addPortsMut.isPending ? 'Dodawanie…' : addBoth ? 'Dodaj trunk + drop' : 'Dodaj trunk'}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => setAddingPorts(true)}
+                className="w-full flex items-center justify-center gap-1.5 border-t border-border/30 py-2 text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors">
+                <Plus className="h-3.5 w-3.5"/> Dodaj port
+              </button>
+            )}
           </div>
         </div>
       )}
