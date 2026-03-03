@@ -7,6 +7,19 @@ import apiClient from './client'
 
 // Auth
 export const authApi = {
+  // ── Login send-otp (email / sms before full login) ──
+  loginSendOtp: (username: string, password: string, otp_type: 'email' | 'sms') =>
+    apiClient.post('/auth/login/send-otp/', { username, password, otp_type }),
+  // ── Email 2FA ──
+  email2faSetup: (action: 'send' | 'confirm', code?: string) =>
+    apiClient.post('/auth/2fa/email/setup/', { action, code }),
+  email2faDisable: (password: string) =>
+    apiClient.post('/auth/2fa/email/disable/', { password }),
+  // ── SMS 2FA ──
+  sms2faSetup: (action: 'set_phone' | 'send' | 'confirm', payload?: { phone?: string; code?: string }) =>
+    apiClient.post('/auth/2fa/sms/setup/', { action, ...payload }),
+  sms2faDisable: (password: string) =>
+    apiClient.post('/auth/2fa/sms/disable/', { password }),
   login: (username: string, password: string, totp_code?: string) =>
     apiClient.post<User & { totp_required?: boolean }>('/auth/login/', { username, password, totp_code }),
   logout: () => apiClient.post('/auth/logout/'),

@@ -1,9 +1,10 @@
 import { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi, patchPanelsApi, patchPanelPortsApi, patchPanelConnectionsApi, panelPortTemplatesApi, panelPortTemplateEntriesApi } from '@/api/endpoints'
+import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi, patchPanelsApi, patchPanelPortsApi, patchPanelConnectionsApi, panelPortTemplatesApi, panelPortTemplateEntriesApi, authApi } from '@/api/endpoints'
 import { extractApiError } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Download, Upload, AlertTriangle, Trash2, Plus, Pencil, ChevronDown, ChevronRight, Package, Layers } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Trash2, Plus, Pencil, ChevronDown, ChevronRight, Package, Layers, Shield, ShieldCheck, KeyRound, Mail, Smartphone } from 'lucide-react'
 import type { DeviceTypeOption, Manufacturer, DeviceModel, PortTemplate, PortType, PatchPanel, PatchPanelPort, PanelPortTemplate, PanelPortTemplateEntry } from '@/types'
 
 const PORT_TYPE_OPTIONS: { value: PortType; label: string }[] = [
@@ -16,7 +17,8 @@ const PORT_TYPE_OPTIONS: { value: PortType; label: string }[] = [
 ]
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'patch' | 'templates' | 'backup'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'catalog' | 'patch' | 'templates' | 'backup' | 'security'>('general')
+  const navigate = useNavigate()
   const [replaceAll, setReplaceAll] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -74,7 +76,7 @@ export function SettingsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {(['general', 'catalog', 'patch', 'backup'] as const).map((tab) => (
+        {(['general', 'catalog', 'patch', 'backup', 'security'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -84,7 +86,7 @@ export function SettingsPage() {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab === 'catalog' ? 'Device Catalog' : tab === 'patch' ? 'Patch Panels' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+            {tab === 'catalog' ? 'Device Catalog' : tab === 'patch' ? 'Patch Panels' : tab === 'security' ? 'Bezpieczeństwo' : tab.charAt(0).toUpperCase() + tab.slice(1)}
           </button>
         ))}
       </div>
@@ -189,6 +191,10 @@ export function SettingsPage() {
             )}
           </section>
         </div>
+      )}
+
+      {activeTab === 'security' && (
+        <SecuritySection navigate={navigate} />
       )}
     </div>
   )

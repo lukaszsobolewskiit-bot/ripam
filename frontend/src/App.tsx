@@ -9,6 +9,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { WizardPage } from '@/pages/WizardPage'
 import { UsersPage } from '@/pages/UsersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { TwoFactorPage } from '@/pages/TwoFactorPage'
 import { SiteRacksPage } from '@/pages/SiteRacksPage'
 import { CommandPalette } from '@/components/search/CommandPalette'
 import { useUIStore } from '@/stores/ui.store'
@@ -69,6 +70,7 @@ function App() {
           <Route path="/wizard" element={<WizardPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/2fa" element={<TwoFactorPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

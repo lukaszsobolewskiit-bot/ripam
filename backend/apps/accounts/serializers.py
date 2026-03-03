@@ -13,7 +13,10 @@ class UserSerializer(serializers.ModelSerializer):
 class UserMeSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ["id", "username", "email", "role", "first_name", "last_name", "totp_enabled"]
+        fields = [
+            "id", "username", "email", "role", "first_name", "last_name",
+            "totp_enabled", "email_2fa_enabled", "sms_2fa_enabled", "phone_number",
+        ]
         read_only_fields = fields
 
 
@@ -24,9 +27,10 @@ class UserAdminSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "username", "email", "role",
-            "first_name", "last_name", "password", "is_active", "totp_enabled",
+            "first_name", "last_name", "password", "is_active",
+            "totp_enabled", "email_2fa_enabled", "sms_2fa_enabled",
         ]
-        read_only_fields = ["id", "totp_enabled"]
+        read_only_fields = ["id", "totp_enabled", "email_2fa_enabled", "sms_2fa_enabled"]
 
     def create(self, validated_data):
         password = validated_data.pop("password", None)
