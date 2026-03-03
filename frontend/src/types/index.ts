@@ -7,6 +7,9 @@ export interface User {
   last_name: string
   is_active?: boolean
   totp_enabled?: boolean
+  email_2fa_enabled?: boolean
+  sms_2fa_enabled?: boolean
+  phone_number?: string
 }
 
 export interface UserAdmin {

@@ -476,7 +476,7 @@ export function SiteRacksPage() {
           {/* Racks grid */}
           <div className="flex gap-6 flex-wrap items-start">
             {pagedRacks.map(rack => (
-              <div key={rack.id} className="flex flex-col gap-2">
+              <div key={rack.id} className="flex flex-col gap-2" style={{ width: 320 }}>
                 {/* Per-rack controls */}
                 <div className="flex items-center gap-1">
                   <button onClick={() => setEditRack(rack)}

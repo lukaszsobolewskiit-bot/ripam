@@ -482,6 +482,37 @@ export function RackElevation({ rack, hosts, panels }: Props) {
   const [tooltip, setTooltip]   = useState<{ unit: RackUnit; x: number; y: number } | null>(null)
   const tooltipTimer            = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Zoom/scale state
+  const RACK_W      = 296
+  const [scale, setScale] = useState(1)
+  const containerRef      = useRef<HTMLDivElement>(null)
+  const rackContentRef    = useRef<HTMLDivElement>(null)
+
+  // Auto-fit on mount and when rack changes
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const fit = () => {
+      const availW = el.clientWidth
+      if (availW > 0 && RACK_W > 0) {
+        const s = Math.min(1, (availW - 8) / RACK_W)
+        setScale(Math.round(s * 100) / 100)
+      }
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const clampScale = (s: number) => Math.min(2, Math.max(0.3, s))
+
+  const onWheel = useCallback((e: React.WheelEvent) => {
+    if (!e.ctrlKey && !e.metaKey) return
+    e.preventDefault()
+    setScale(prev => clampScale(prev - e.deltaY * 0.001))
+  }, [])
+
   // Drag state
   const [dragging, setDragging]     = useState<RackUnit | null>(null)
   const [dragOverU, setDragOverU]   = useState<number | null>(null)
@@ -616,8 +647,11 @@ export function RackElevation({ rack, hosts, panels }: Props) {
   const utilPct = rack.height_u > 0 ? (rack.used_u / rack.height_u) * 100 : 0
   const utilClr = utilPct > 90 ? '#ef4444' : utilPct > 70 ? '#f59e0b' : '#22c55e'
 
+  // Visual height of rack content: top bar (20) + rows + bottom bar (20) + borders
+  const rackVisualH = 20 + rack.height_u * U_PX + 20 + 4
+
   return (
-    <div style={{ width: 296 }}>
+    <div ref={containerRef} className="w-full" onWheel={onWheel}>
 
       {/* ── Nagłówek ── */}
       <div className="mb-3 space-y-2">
@@ -635,8 +669,28 @@ export function RackElevation({ rack, hosts, panels }: Props) {
           <span className={cn('font-medium', freeU > 0 ? 'text-emerald-600' : 'text-red-500')}>{freeU}U wolne</span>
           <span className="text-muted-foreground/40">·</span>
           <ResizeBar rack={rack}/>
+          <span className="text-muted-foreground/40 ml-auto">·</span>
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1 ml-auto">
+            <button
+              onClick={() => setScale(prev => clampScale(prev - 0.1))}
+              className="w-5 h-5 rounded border border-border flex items-center justify-center text-muted-foreground hover:bg-accent text-xs font-bold leading-none"
+              title="Oddal (Ctrl+scroll)">−</button>
+            <button
+              onClick={() => {
+                const el = containerRef.current
+                if (!el) return
+                const s = Math.min(1, (el.clientWidth - 8) / RACK_W)
+                setScale(Math.round(s * 100) / 100)
+              }}
+              className="min-w-[3rem] h-5 rounded border border-border text-[10px] font-mono text-muted-foreground hover:bg-accent px-1"
+              title="Dopasuj do ekranu">{Math.round(scale * 100)}%</button>
+            <button
+              onClick={() => setScale(prev => clampScale(prev + 0.1))}
+              className="w-5 h-5 rounded border border-border flex items-center justify-center text-muted-foreground hover:bg-accent text-xs font-bold leading-none"
+              title="Przybliż (Ctrl+scroll)">+</button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
             <div className="h-full rounded-full transition-all" style={{ width: `${utilPct}%`, backgroundColor: utilClr }}/>
           </div>
@@ -646,6 +700,16 @@ export function RackElevation({ rack, hosts, panels }: Props) {
       </div>
 
       {/* ── Szafa ── */}
+      {/* Outer div reserves space equal to scaled height so page scroll works correctly */}
+      <div style={{ height: rackVisualH * scale, width: Math.max(RACK_W * scale, containerRef.current?.clientWidth ?? 0) }}>
+      <div
+        ref={rackContentRef}
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          width: RACK_W,
+        }}
+      >
       <div className="rounded-xl overflow-hidden select-none"
         style={{ background:'#f8fafc', border:'2px solid #cbd5e1', boxShadow:'0 2px 12px rgba(0,0,0,0.07)' }}>
         {/* Górna listwa */}
@@ -760,6 +824,8 @@ export function RackElevation({ rack, hosts, panels }: Props) {
           <div className="flex gap-2">{[0,1,2,3].map(i => <div key={i} className="rounded-sm" style={{ width:8,height:4,background:'#94a3b8' }}/>)}</div>
         </div>
       </div>
+      </div>{/* end scale wrapper */}
+      </div>{/* end height placeholder */}
 
       {/* Ghost element */}
       {dragging && <DragGhost unit={dragging} x={ghostPos.x} y={ghostPos.y}/>}
