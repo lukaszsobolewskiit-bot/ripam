@@ -7,13 +7,13 @@
  */
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { rackUnitsApi, racksApi, pdusApi, pduOutletsApi } from '@/api/endpoints'
+import { rackUnitsApi, racksApi, pdusApi, pduOutletsApi, portConnectionsApi, patchPanelPortsApi } from '@/api/endpoints'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {
   X, Plus, Minus, Server, Cable, Cpu, Battery, Package,
   Network, Tag, Hash, Layers, AlertCircle, Zap,
-  GripVertical, ZapOff,
+  GripVertical, ZapOff, ArrowRight,
 } from 'lucide-react'
 import { Dialog } from '@/components/ui/Dialog'
 import type { Rack, RackUnit, PDU, PDUOutlet } from '@/types'
@@ -35,11 +35,35 @@ const U_PX = 30
 function UnitTooltip({ unit, x, y }: { unit: RackUnit; x: number; y: number }) {
   const cfg  = TYPE_CFG[unit.item_type] ?? TYPE_CFG.other
   const name = unit.host_name || unit.patch_panel_name || unit.label || cfg.label
-  const left = Math.min(x + 16, window.innerWidth - 270)
-  const top  = Math.max(8, Math.min(y - 10, window.innerHeight - 200))
+  const left = Math.min(x + 16, window.innerWidth - 300)
+  const top  = Math.max(8, Math.min(y - 10, window.innerHeight - 300))
+
+  // Fetch host port connections if this is a device unit with a host
+  const { data: connections } = useQuery({
+    queryKey: ['port-connections-rack', unit.host],
+    queryFn: () => portConnectionsApi.list({ host: String(unit.host) }),
+    select: r => r.data,
+    enabled: !!unit.host,
+    staleTime: 30000,
+  })
+
+  // Fetch patch panel ports if this is a patch panel unit
+  const { data: panelPorts } = useQuery({
+    queryKey: ['patch-panel-ports-rack', unit.patch_panel],
+    queryFn: () => patchPanelPortsApi.list({ panel: String(unit.patch_panel) }),
+    select: r => r.data,
+    enabled: !!unit.patch_panel,
+    staleTime: 30000,
+  })
+
+  const connectedPorts = (connections ?? []).filter(c =>
+    c.host_a_id === unit.host || c.host_b_id === unit.host
+  )
+  const activePanelPorts = (panelPorts ?? []).filter(p => p.device_port_info?.host_name || p.device_port_info?.far_panel_name)
+
   return (
     <div className="fixed z-[9999] pointer-events-none" style={{ left, top }}>
-      <div className="w-60 rounded-xl border border-border bg-popover shadow-xl overflow-hidden text-xs">
+      <div className="w-72 rounded-xl border border-border bg-popover shadow-xl overflow-hidden text-xs">
         <div className="px-3 py-2 flex items-center gap-2 border-b border-border/40"
           style={{ background: cfg.accent + '15' }}>
           <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
@@ -58,10 +82,66 @@ function UnitTooltip({ unit, x, y }: { unit: RackUnit; x: number; y: number }) {
           {unit.host_model_name  && <TRow icon={<Tag     className="h-3 w-3"/>} v={unit.host_model_name} />}
           {unit.host_device_type && <TRow icon={<Hash    className="h-3 w-3"/>} v={unit.host_device_type.replace(/_/g,' ')} cap />}
           {unit.patch_panel_media_type && <TRow icon={<Layers className="h-3 w-3"/>} v={unit.patch_panel_media_type.replace(/_/g,' ')} />}
-          {!unit.host_ip && !unit.host_model_name && !unit.patch_panel_media_type && (
+          {!unit.host_ip && !unit.host_model_name && !unit.patch_panel_media_type && connectedPorts.length === 0 && activePanelPorts.length === 0 && (
             <p className="text-muted-foreground italic text-[10px]">Brak dodatkowych danych</p>
           )}
         </div>
+
+        {/* Połączenia urządzenia */}
+        {connectedPorts.length > 0 && (
+          <div className="border-t border-border/30 px-3 py-2">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+              Połączenia portów ({connectedPorts.length})
+            </p>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {connectedPorts.map(c => {
+                const isA = c.host_a_id === unit.host
+                const localPort  = isA ? c.port_a_name  : c.port_b_name
+                const remoteHost = isA ? c.host_b_name  : c.host_a_name
+                const remotePort = isA ? c.port_b_name  : c.port_a_name
+                return (
+                  <div key={c.id} className="flex items-center gap-1.5 text-[10px]">
+                    <span className="font-mono text-primary shrink-0">{localPort}</span>
+                    <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0"/>
+                    <span className="text-foreground truncate">{remoteHost}</span>
+                    <span className="font-mono text-muted-foreground shrink-0 ml-auto">{remotePort}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Połączenia patch panelu */}
+        {activePanelPorts.length > 0 && (
+          <div className="border-t border-border/30 px-3 py-2">
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+              Porty panelu ({activePanelPorts.length} połączonych)
+            </p>
+            <div className="space-y-1 max-h-32 overflow-y-auto">
+              {activePanelPorts.slice(0, 8).map(p => {
+                const info = p.device_port_info!
+                return (
+                  <div key={p.id} className="flex items-center gap-1.5 text-[10px]">
+                    <span className="font-mono text-amber-500 shrink-0">P{p.port_number}</span>
+                    <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0"/>
+                    <span className="text-foreground truncate">
+                      {info.host_name || info.far_panel_name || '—'}
+                    </span>
+                    {(info.device_port_name || info.far_panel_port_number) && (
+                      <span className="font-mono text-muted-foreground shrink-0 ml-auto">
+                        {info.device_port_name || `P${info.far_panel_port_number}`}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+              {activePanelPorts.length > 8 && (
+                <p className="text-[9px] text-muted-foreground">+{activePanelPorts.length - 8} więcej…</p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

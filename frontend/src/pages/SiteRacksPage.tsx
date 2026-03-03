@@ -2,10 +2,10 @@
  * SiteRacksPage — pełna strona zarządzania szafami rack dla danego Site.
  * Dostępna z bocznego menu przy kliknięciu "Racks" przy danym site.
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { racksApi, hostsApi, patchPanelsApi } from '@/api/endpoints'
+import { racksApi, hostsApi, patchPanelsApi, portConnectionsApi, patchPanelPortsApi } from '@/api/endpoints'
 import { RackElevation } from '@/components/rack/RackElevation'
 import { Dialog } from '@/components/ui/Dialog'
 import { cn } from '@/lib/utils'
@@ -14,8 +14,226 @@ import { extractApiError } from '@/lib/utils'
 import {
   Plus, Server, ArrowLeft, LayoutGrid, List,
   Pencil, Trash2, ChevronLeft, ChevronRight,
+  ChevronDown as ChevDown, Cable, Zap, Battery, Package, Cpu,
+  Network, ArrowRight, Layers,
 } from 'lucide-react'
-import type { Rack } from '@/types'
+import type { Rack, RackUnit } from '@/types'
+
+// ─── Type config (same as RackElevation) ──────────────────────────────────────
+
+const TYPE_CFG_LIST: Record<string, { accent: string; icon: typeof Server; label: string }> = {
+  device:      { accent: '#3b82f6', icon: Server,  label: 'Device'      },
+  patch_panel: { accent: '#f59e0b', icon: Cable,   label: 'Patch Panel' },
+  cable_mgmt:  { accent: '#6b7280', icon: Cable,   label: 'Cable Mgmt'  },
+  blank:       { accent: '#9ca3af', icon: Package, label: 'Blank'       },
+  pdu:         { accent: '#ea580c', icon: Zap,     label: 'PDU'         },
+  ups:         { accent: '#16a34a', icon: Battery, label: 'UPS'         },
+  other:       { accent: '#7c3aed', icon: Cpu,     label: 'Other'       },
+}
+
+// ─── Device row with connections tooltip ──────────────────────────────────────
+
+function DeviceRow({ unit }: { unit: RackUnit }) {
+  const cfg  = TYPE_CFG_LIST[unit.item_type] ?? TYPE_CFG_LIST.other
+  const name = unit.host_name || unit.patch_panel_name || unit.label || cfg.label
+  const [hover, setHover] = useState(false)
+  const [pos, setPos]     = useState({ x: 0, y: 0 })
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const { data: connections } = useQuery({
+    queryKey: ['port-connections-list', unit.host],
+    queryFn: () => portConnectionsApi.list({ host: String(unit.host) }),
+    select: r => r.data,
+    enabled: !!unit.host && hover,
+    staleTime: 30000,
+  })
+
+  const { data: panelPorts } = useQuery({
+    queryKey: ['patch-panel-ports-list', unit.patch_panel],
+    queryFn: () => patchPanelPortsApi.list({ panel: String(unit.patch_panel) }),
+    select: r => r.data,
+    enabled: !!unit.patch_panel && hover,
+    staleTime: 30000,
+  })
+
+  const connList = (connections ?? []).filter(c => c.host_a_id === unit.host || c.host_b_id === unit.host)
+  const activePanelPorts = (panelPorts ?? []).filter(p => p.device_port_info?.host_name || p.device_port_info?.far_panel_name)
+  const hasConns = connList.length > 0 || activePanelPorts.length > 0
+
+  const onEnter = (e: React.MouseEvent) => {
+    setPos({ x: e.clientX, y: e.clientY })
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = setTimeout(() => setHover(true), 180)
+  }
+  const onMove = (e: React.MouseEvent) => setPos({ x: e.clientX, y: e.clientY })
+  const onLeave = () => { if (timer.current) clearTimeout(timer.current); setHover(false) }
+
+  return (
+    <div
+      className="flex items-center gap-3 px-3 py-1.5 rounded hover:bg-muted/40 transition-colors cursor-default relative"
+      onMouseEnter={onEnter}
+      onMouseMove={onMove}
+      onMouseLeave={onLeave}
+    >
+      <div className="w-5 h-5 rounded flex items-center justify-center shrink-0"
+        style={{ background: cfg.accent + '20', border: `1px solid ${cfg.accent}40` }}>
+        <cfg.icon className="h-3 w-3" style={{ color: cfg.accent }}/>
+      </div>
+      <span className="text-[11px] font-mono text-muted-foreground shrink-0 w-5">U{unit.position_u}</span>
+      <span className="text-xs font-medium truncate flex-1">{name}</span>
+      {unit.host_ip && <span className="text-[10px] font-mono text-muted-foreground shrink-0">{unit.host_ip}</span>}
+      {unit.height_u > 1 && <span className="text-[9px] text-muted-foreground shrink-0">{unit.height_u}U</span>}
+      {hasConns && <span className="w-1.5 h-1.5 rounded-full bg-primary shrink-0"/>}
+
+      {/* Hover tooltip with connections */}
+      {hover && (
+        <div className="fixed z-[9999] pointer-events-none"
+          style={{ left: Math.min(pos.x + 16, window.innerWidth - 300), top: Math.max(8, pos.y - 10) }}>
+          <div className="w-72 rounded-xl border border-border bg-popover shadow-xl overflow-hidden text-xs">
+            <div className="px-3 py-2 flex items-center gap-2 border-b border-border/40"
+              style={{ background: cfg.accent + '15' }}>
+              <cfg.icon className="h-3.5 w-3.5 shrink-0" style={{ color: cfg.accent }}/>
+              <span className="font-semibold truncate">{name}</span>
+              <span className="ml-auto text-[9px] font-mono shrink-0" style={{ color: cfg.accent }}>U{unit.position_u}</span>
+            </div>
+            {unit.host_ip && (
+              <div className="px-3 py-1.5 flex items-center gap-2 border-b border-border/20">
+                <Network className="h-3 w-3 text-muted-foreground shrink-0"/>
+                <span className="font-mono text-[10px]">{unit.host_ip}</span>
+              </div>
+            )}
+            {connList.length > 0 && (
+              <div className="px-3 py-2">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Połączenia ({connList.length})
+                </p>
+                <div className="space-y-1 max-h-40 overflow-y-auto">
+                  {connList.map(c => {
+                    const isA = c.host_a_id === unit.host
+                    const localPort  = isA ? c.port_a_name  : c.port_b_name
+                    const remoteHost = isA ? c.host_b_name  : c.host_a_name
+                    const remotePort = isA ? c.port_b_name  : c.port_a_name
+                    return (
+                      <div key={c.id} className="flex items-center gap-1.5 text-[10px]">
+                        <span className="font-mono text-primary shrink-0">{localPort}</span>
+                        <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0"/>
+                        <span className="truncate text-foreground">{remoteHost}</span>
+                        <span className="font-mono text-muted-foreground shrink-0 ml-auto">{remotePort}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+            {activePanelPorts.length > 0 && (
+              <div className="px-3 py-2 border-t border-border/20">
+                <p className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  Porty panelu ({activePanelPorts.length} połączonych)
+                </p>
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {activePanelPorts.slice(0, 8).map(p => {
+                    const info = p.device_port_info!
+                    return (
+                      <div key={p.id} className="flex items-center gap-1.5 text-[10px]">
+                        <span className="font-mono text-amber-500 shrink-0">P{p.port_number}</span>
+                        <ArrowRight className="h-2.5 w-2.5 text-muted-foreground/50 shrink-0"/>
+                        <span className="truncate text-foreground">{info.host_name || info.far_panel_name || '—'}</span>
+                        <span className="font-mono text-muted-foreground shrink-0 ml-auto">
+                          {info.device_port_name || (info.far_panel_port_number ? `P${info.far_panel_port_number}` : '')}
+                        </span>
+                      </div>
+                    )
+                  })}
+                  {activePanelPorts.length > 8 && (
+                    <p className="text-[9px] text-muted-foreground">+{activePanelPorts.length - 8} więcej…</p>
+                  )}
+                </div>
+              </div>
+            )}
+            {!hasConns && (
+              <div className="px-3 py-2 text-[10px] text-muted-foreground italic">Brak połączeń</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── RackListRow — card with expandable device list ───────────────────────────
+
+function RackListRow({ rack, onEdit, onDelete }: { rack: Rack; onEdit: () => void; onDelete: () => void }) {
+  const [expanded, setExpanded] = useState(false)
+  const freeU = rack.height_u - rack.used_u
+  const pct = Math.round((rack.used_u / rack.height_u) * 100)
+
+  // Sort units by position_u, deduplicate multi-U items
+  const uniqueUnits = useMemo(() => {
+    const seen = new Set<number>()
+    const result: RackUnit[] = []
+    for (const u of [...rack.rack_units].sort((a, b) => a.position_u - b.position_u)) {
+      if (!seen.has(u.id)) { seen.add(u.id); result.push(u) }
+    }
+    return result.filter(u => u.item_type !== 'blank' && u.item_type !== 'cable_mgmt')
+  }, [rack.rack_units])
+
+  return (
+    <div className="rounded-xl border border-border bg-card overflow-hidden transition-colors hover:border-primary/30">
+      {/* Header row */}
+      <div className="flex items-center gap-4 px-4 py-3 group">
+        <button
+          onClick={() => setExpanded(e => !e)}
+          className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0 hover:bg-primary/20 transition-colors">
+          <ChevDown className={cn('h-4 w-4 text-primary transition-transform', expanded && 'rotate-180')}/>
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-sm">{rack.name}</span>
+            {rack.facility_id && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{rack.facility_id}</span>}
+            <span className={cn(
+              'text-[9px] rounded-full px-2 py-0.5 font-medium capitalize',
+              rack.status === 'active' ? 'bg-green-500/15 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground',
+            )}>{rack.status}</span>
+          </div>
+          <div className="flex items-center gap-3 mt-1">
+            <div className="w-32 h-1.5 rounded-full bg-muted overflow-hidden">
+              <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-[10px] text-muted-foreground">{rack.used_u}/{rack.height_u}U used</span>
+            <span className={cn('text-[10px] font-medium', freeU > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500')}>
+              {freeU}U free
+            </span>
+            {rack.location && <span className="text-[10px] text-muted-foreground truncate">{rack.location}</span>}
+            <span className="text-[10px] text-muted-foreground ml-auto">{uniqueUnits.length} urządzeń</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={onEdit} className="p-1.5 rounded hover:bg-accent text-muted-foreground">
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={onDelete} className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground">
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Device list */}
+      {expanded && (
+        <div className="border-t border-border/40 px-2 py-2 bg-muted/10">
+          {uniqueUnits.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground text-center py-3 italic">Szafa pusta</p>
+          ) : (
+            <div className="divide-y divide-border/30">
+              {uniqueUnits.map(unit => (
+                <DeviceRow key={unit.id} unit={unit}/>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ─── Rack Form ────────────────────────────────────────────────────────────────
 
@@ -297,48 +515,14 @@ export function SiteRacksPage() {
         /* ── List view ── */
         <div className="flex-1 overflow-y-auto p-4">
           <div className="space-y-2 max-w-3xl">
-            {rackList.map(rack => {
-              const freeU = rack.height_u - rack.used_u
-              const pct = Math.round((rack.used_u / rack.height_u) * 100)
-              return (
-                <div key={rack.id}
-                  className="flex items-center gap-4 rounded-xl border border-border bg-card px-4 py-3 hover:border-primary/40 transition-colors group">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 shrink-0">
-                    <Server className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-sm">{rack.name}</span>
-                      {rack.facility_id && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">{rack.facility_id}</span>}
-                      <span className={cn(
-                        'text-[9px] rounded-full px-2 py-0.5 font-medium capitalize',
-                        rack.status === 'active' ? 'bg-green-500/15 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground',
-                      )}>{rack.status}</span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1">
-                      <div className="w-32 h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-[10px] text-muted-foreground">{rack.used_u}/{rack.height_u}U used</span>
-                      <span className={cn('text-[10px] font-medium', freeU > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500')}>
-                        {freeU}U free
-                      </span>
-                      {rack.location && <span className="text-[10px] text-muted-foreground truncate">{rack.location}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => setEditRack(rack)}
-                      className="p-1.5 rounded hover:bg-accent text-muted-foreground">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => { if (window.confirm(`Delete "${rack.name}"?`)) deleteRack.mutate(rack.id) }}
-                      className="p-1.5 rounded hover:bg-destructive/20 text-muted-foreground">
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
+            {rackList.map(rack => (
+              <RackListRow
+                key={rack.id}
+                rack={rack}
+                onEdit={() => setEditRack(rack)}
+                onDelete={() => { if (window.confirm(`Delete rack "${rack.name}"?`)) deleteRack.mutate(rack.id) }}
+              />
+            ))}
           </div>
         </div>
       )}

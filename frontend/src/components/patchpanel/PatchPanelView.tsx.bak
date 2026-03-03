@@ -355,19 +355,15 @@ function PanelRack({ panel, allPanels, projectId, onConnect, onDisconnect }: {
 
 // ─── Connect Front Dialog ─────────────────────────────────────────────────────
 
-function ConnectFrontDialog({ panel, port, allPanels, onClose }: {
-  panel: PatchPanel; port: PatchPanelPort; allPanels: PatchPanel[]; onClose: () => void
+function ConnectFrontDialog({ panel, port, onClose }: {
+  panel: PatchPanel; port: PatchPanelPort; onClose: () => void
 }) {
   const qc = useQueryClient()
-  const [mode, setMode] = useState<'host' | 'panel'>('host')
-  // Host mode
   const [hostId, setHostId]         = useState('')
   const [devicePortId, setDevicePortId] = useState('')
   const [desc, setDesc]             = useState('')
-  // Panel mode
-  const [targetPanelId, setTargetPanelId] = useState('')
-  const [targetPortId, setTargetPortId]   = useState('')
 
+  // Fix 4: hosty per site panelu, fallback do projectId
   const siteId = panel.site
   const { data: hosts } = useQuery({
     queryKey: ['hosts', { site: siteId }],
@@ -386,23 +382,11 @@ function ConnectFrontDialog({ panel, port, allPanels, onClose }: {
   const freePorts = (ports ?? []).filter(p => !p.connected_to)
   const meta = MEDIA_META[panel.media_type] ?? MEDIA_META.copper
 
-  const otherPanels = allPanels.filter(p => p.id !== panel.id)
-  const selectedPanel = otherPanels.find(p => String(p.id) === targetPanelId)
-  const freePanelPorts = selectedPanel?.ports.filter(p => !p.device_port_info?.host_name && !p.device_port_info?.far_panel_name) ?? []
-
-  const mutHost = useMutation({
+  const mut = useMutation({
     mutationFn: () => patchPanelConnectionsApi.create({
       device_port: Number(devicePortId), panel_port: port.id, description: desc,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['patch-panels'] }); toast.success('Połączono'); onClose() },
-    onError: () => toast.error('Błąd połączenia'),
-  })
-
-  const mutPanel = useMutation({
-    mutationFn: () => patchPanelConnectionsApi.create({
-      panel_port: port.id, far_panel_port: Number(targetPortId), description: desc,
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['patch-panels'] }); toast.success('Połączono panel–panel'); onClose() },
     onError: () => toast.error('Błąd połączenia'),
   })
 
@@ -418,72 +402,29 @@ function ConnectFrontDialog({ panel, port, allPanels, onClose }: {
           <ArrowRight className="h-2.5 w-2.5"/> Przód
         </span>
       </div>
-
-      {/* Mode toggle */}
-      <div className="flex rounded border border-border overflow-hidden text-xs">
-        <button onClick={() => setMode('host')}
-          className={`flex-1 py-1.5 transition-colors ${mode==='host' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>
-          Urządzenie / host
-        </button>
-        <button onClick={() => setMode('panel')}
-          className={`flex-1 py-1.5 transition-colors ${mode==='panel' ? 'bg-primary text-primary-foreground' : 'hover:bg-accent'}`}>
-          Inny Patch Panel
-        </button>
+      {panel.site_name && (
+        <p className="text-[10px] text-muted-foreground">Pokazuję urządzenia z lokalizacji: <strong>{panel.site_name}</strong></p>
+      )}
+      <div>
+        <label className="text-xs text-muted-foreground block mb-1">Urządzenie</label>
+        <select value={hostId} onChange={e => { setHostId(e.target.value); setDevicePortId('') }}
+          className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs">
+          <option value="">— Wybierz urządzenie —</option>
+          {(hosts ?? []).map(h => <option key={h.id} value={h.id}>{h.hostname || h.ip_address}</option>)}
+        </select>
       </div>
-
-      {mode === 'host' && (
-        <>
-          {panel.site_name && (
-            <p className="text-[10px] text-muted-foreground">Pokazuję urządzenia z lokalizacji: <strong>{panel.site_name}</strong></p>
-          )}
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Urządzenie</label>
-            <select value={hostId} onChange={e => { setHostId(e.target.value); setDevicePortId('') }}
-              className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs">
-              <option value="">— Wybierz urządzenie —</option>
-              {(hosts ?? []).map(h => <option key={h.id} value={h.id}>{h.hostname || h.ip_address}</option>)}
-            </select>
-          </div>
-          {hostId && (
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Port urządzenia</label>
-              {freePorts.length === 0
-                ? <p className="text-xs text-amber-600 bg-amber-500/10 rounded px-2 py-1.5 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5"/> Brak wolnych portów</p>
-                : <select value={devicePortId} onChange={e => setDevicePortId(e.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs">
-                    <option value="">— Wybierz port —</option>
-                    {freePorts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.port_type.toUpperCase()})</option>)}
-                  </select>
-              }
-            </div>
-          )}
-        </>
+      {hostId && (
+        <div>
+          <label className="text-xs text-muted-foreground block mb-1">Port urządzenia</label>
+          {freePorts.length === 0
+            ? <p className="text-xs text-amber-600 bg-amber-500/10 rounded px-2 py-1.5 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5"/> Brak wolnych portów</p>
+            : <select value={devicePortId} onChange={e => setDevicePortId(e.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs">
+                <option value="">— Wybierz port —</option>
+                {freePorts.map(p => <option key={p.id} value={p.id}>{p.name} ({p.port_type.toUpperCase()})</option>)}
+              </select>
+          }
+        </div>
       )}
-
-      {mode === 'panel' && (
-        <>
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1">Docelowy Patch Panel</label>
-            <select value={targetPanelId} onChange={e => { setTargetPanelId(e.target.value); setTargetPortId('') }}
-              className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs">
-              <option value="">— Wybierz panel —</option>
-              {otherPanels.map(p => <option key={p.id} value={p.id}>{p.name} ({p.site_name || 'bez site'})</option>)}
-            </select>
-          </div>
-          {targetPanelId && (
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1">Port panelu</label>
-              {freePanelPorts.length === 0
-                ? <p className="text-xs text-amber-600 bg-amber-500/10 rounded px-2 py-1.5 flex items-center gap-1.5"><AlertCircle className="h-3.5 w-3.5"/> Brak wolnych portów</p>
-                : <select value={targetPortId} onChange={e => setTargetPortId(e.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs">
-                    <option value="">— Wybierz port —</option>
-                    {freePanelPorts.map(p => <option key={p.id} value={p.id}>Port {p.port_number}{p.label ? ` — ${p.label}` : ''}</option>)}
-                  </select>
-              }
-            </div>
-          )}
-        </>
-      )}
-
       <div>
         <label className="text-xs text-muted-foreground block mb-1">Opis</label>
         <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="np. Biurko A3…"
@@ -491,16 +432,10 @@ function ConnectFrontDialog({ panel, port, allPanels, onClose }: {
       </div>
       <div className="flex gap-2 justify-end pt-1 border-t border-border">
         <button onClick={onClose} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-accent">Anuluj</button>
-        {mode === 'host'
-          ? <button onClick={() => mutHost.mutate()} disabled={!devicePortId || mutHost.isPending}
-              className="rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50">
-              {mutHost.isPending ? 'Łączenie…' : 'Połącz'}
-            </button>
-          : <button onClick={() => mutPanel.mutate()} disabled={!targetPortId || mutPanel.isPending}
-              className="rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50">
-              {mutPanel.isPending ? 'Łączenie…' : 'Połącz'}
-            </button>
-        }
+        <button onClick={() => mut.mutate()} disabled={!devicePortId || mut.isPending}
+          className="rounded bg-primary px-3 py-1.5 text-xs text-primary-foreground disabled:opacity-50">
+          {mut.isPending ? 'Łączenie…' : 'Połącz'}
+        </button>
       </div>
     </div>
   )
@@ -570,19 +505,12 @@ function ConnectBackDialog({ panel, port, allPanels, onClose }: {
 
 // ─── Add Panel Dialog (Fix 2) ─────────────────────────────────────────────────
 
-function AddPanelDialog({ projectId, onClose }: { projectId: number; onClose: () => void }) {
+function AddPanelDialog({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient()
-  const [name, setName]     = useState('')
-  const [media, setMedia]   = useState('fiber_sc_apc')
-  const [count, setCount]   = useState(24)
-  const [loc, setLoc]       = useState('')
-  const [siteId, setSiteId] = useState('')
-
-  const { data: sites } = useQuery({
-    queryKey: ['sites', projectId],
-    queryFn:  () => sitesApi.list(projectId),
-    select:   r => r.data.results as Site[],
-  })
+  const [name, setName]   = useState('')
+  const [media, setMedia] = useState('fiber_sc_apc')
+  const [count, setCount] = useState(24)
+  const [loc, setLoc]     = useState('')
 
   const mut = useMutation({
     mutationFn: () => patchPanelsApi.create({
@@ -724,7 +652,7 @@ export function PatchPanelView({ projectId }: { projectId: number }) {
 
       {/* Dialog nowego panelu */}
       <Dialog open={addPanel} onOpenChange={o => { if (!o) setAddPanel(false) }} title="Nowy Patch Panel">
-        <AddPanelDialog projectId={projectId} onClose={() => setAddPanel(false)}/>
+        <AddPanelDialog onClose={() => setAddPanel(false)} projectId={projectId}/>
       </Dialog>
 
       {/* Dialog połączenia */}
@@ -736,7 +664,7 @@ export function PatchPanelView({ projectId }: { projectId: number }) {
           : `Przód — ${connectTarget?.panel.name} · Port ${connectTarget?.port.port_number}`}
       >
         {connectTarget?.side === 'front' && (
-          <ConnectFrontDialog panel={connectTarget.panel} port={connectTarget.port} allPanels={panels!} onClose={() => setConnectTarget(null)}/>
+          <ConnectFrontDialog panel={connectTarget.panel} port={connectTarget.port} onClose={() => setConnectTarget(null)}/>
         )}
         {connectTarget?.side === 'back' && (
           <ConnectBackDialog panel={connectTarget.panel} port={connectTarget.port} allPanels={panels!} onClose={() => setConnectTarget(null)}/>
