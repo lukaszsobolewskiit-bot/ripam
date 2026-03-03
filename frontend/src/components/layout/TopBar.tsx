@@ -142,8 +142,8 @@ export function TopBar() {
 
   const handleViewChange = (mode: 'topology' | 'geo' | 'table' | 'racks') => {
     if (!projectId) return
-    if (mode === 'table') {
-      navigate(`/projects/${projectId}/table/hosts`)
+    } else if (mode === 'table') {
+      navigate(`/projects/${projectId}/table/network`)
     } else if (mode === 'racks') {
       navigate(`/projects/${projectId}/racks`)
     } else {

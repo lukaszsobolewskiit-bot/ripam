@@ -5,6 +5,7 @@ import { projectsApi } from '@/api/endpoints'
 import { TopologyCanvas } from '@/components/topology/TopologyCanvas'
 import { GeoMap } from '@/components/geo/GeoMap'
 import { ProjectTableView } from '@/components/data/tables/ProjectTableView'
+import { RackTableView } from '@/components/rack/RackTableView'
 import { PortConnectionsTopology } from '@/components/topology/PortConnectionsTopology'
 import { PatchPanelView } from '@/components/patchpanel/PatchPanelView'
 import { SubscriberBoxView } from '@/components/patchpanel/SubscriberBoxView'
@@ -12,23 +13,28 @@ import { SubscriberBoxView } from '@/components/patchpanel/SubscriberBoxView'
 import { useEffect } from 'react'
 import { useSelectionStore } from '@/stores/selection.store'
 import { cn } from '@/lib/utils'
-import { Network, Map, Table, Cable, Layers, Box } from 'lucide-react'
+import { Network, Map, Table, Cable, Layers, Box, LayoutGrid } from 'lucide-react'
 
 type MainView = 'topology' | 'geo' | 'table' | 'physical'
 type PhysicalSubView = 'connections' | 'patches' | 'boxes'
+type TableSubView = 'network' | 'racks'
 
-function parseView(wildcard: string | undefined): { main: MainView; sub: PhysicalSubView } {
-  if (!wildcard) return { main: 'topology', sub: 'connections' }
+function parseView(wildcard: string | undefined): { main: MainView; sub: PhysicalSubView; tableSub: TableSubView } {
+  if (!wildcard) return { main: 'topology', sub: 'connections', tableSub: 'network' }
   const [first, second] = wildcard.split('/')
   const main = first as MainView
   if (!['topology', 'geo', 'table', 'physical'].includes(main)) {
-    // backward-compat: old /connections and /patches routes
-    if (first === 'connections') return { main: 'physical', sub: 'connections' }
-    if (first === 'patches') return { main: 'physical', sub: 'patches' }
-    return { main: 'topology', sub: 'connections' }
+    if (first === 'connections') return { main: 'physical', sub: 'connections', tableSub: 'network' }
+    if (first === 'patches') return { main: 'physical', sub: 'patches', tableSub: 'network' }
+    return { main: 'topology', sub: 'connections', tableSub: 'network' }
   }
   const sub = (second as PhysicalSubView) ?? 'connections'
-  return { main, sub: ['connections', 'patches', 'boxes'].includes(sub) ? sub as PhysicalSubView : 'connections' }
+  const tableSub = (second as TableSubView) ?? 'network'
+  return {
+    main,
+    sub: ['connections', 'patches', 'boxes'].includes(sub) ? sub as PhysicalSubView : 'connections',
+    tableSub: ['network', 'racks'].includes(tableSub) ? tableSub as TableSubView : 'network',
+  }
 }
 
 export function ProjectPage() {
@@ -37,7 +43,7 @@ export function ProjectPage() {
   const navigate = useNavigate()
   const setSelectedProject = useSelectionStore((s) => s.setSelectedProject)
 
-  const { main: view, sub: physicalSub } = parseView(wildcard)
+  const { main: view, sub: physicalSub, tableSub } = parseView(wildcard)
 
   useEffect(() => { setSelectedProject(id) }, [id, setSelectedProject])
 
@@ -52,12 +58,13 @@ export function ProjectPage() {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
-      if (e.key === '1') navigate(`/projects/${id}/table`, { replace: true })
+      if (e.key === '1') navigate(`/projects/${id}/table/network`, { replace: true })
       else if (e.key === '2') navigate(`/projects/${id}/topology`, { replace: true })
       else if (e.key === '3') navigate(`/projects/${id}/geo`, { replace: true })
       else if (e.key === '4') navigate(`/projects/${id}/physical/connections`, { replace: true })
       else if (e.key === '5') navigate(`/projects/${id}/physical/patches`, { replace: true })
       else if (e.key === '6') navigate(`/projects/${id}/physical/boxes`, { replace: true })
+      else if (e.key === '7') navigate(`/projects/${id}/table/racks`, { replace: true })
     }
     document.addEventListener('keydown', handleKey)
     return () => document.removeEventListener('keydown', handleKey)
@@ -117,6 +124,34 @@ export function ProjectPage() {
         </div>
       </div>
 
+      {/* ── Table sub-tabs ── */}
+      {view === 'table' && (
+        <div className="flex items-center gap-0 border-b border-border px-4 bg-card/30">
+          {([
+            { key: 'network' as TableSubView, label: 'Sieć', icon: Table, kbd: '1' },
+            { key: 'racks'   as TableSubView, label: 'Racks', icon: LayoutGrid, kbd: '7' },
+          ]).map(({ key, label, icon: Icon, kbd }) => (
+            <button
+              key={key}
+              onClick={() => navigate(`/projects/${id}/table/${key}`, { replace: true })}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-2 text-xs font-medium border-b-2 transition-colors',
+                tableSub === key
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
+              )}
+            >
+              <Icon className="h-3 w-3" />
+              {label}
+              <kbd className={cn(
+                'hidden md:inline rounded border px-1 text-[9px]',
+                tableSub === key ? 'border-primary/30' : 'border-border',
+              )}>{kbd}</kbd>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* ── Physical sub-tabs ── */}
       {view === 'physical' && (
         <div className="flex items-center gap-0 border-b border-border px-4 bg-card/30">
@@ -146,7 +181,8 @@ export function ProjectPage() {
       <div className="flex-1 overflow-hidden">
         {view === 'topology' && <TopologyCanvas projectId={id} />}
         {view === 'geo'      && <GeoMap projectId={id} />}
-        {view === 'table'    && <ProjectTableView projectId={id} />}
+        {view === 'table' && tableSub === 'network' && <ProjectTableView projectId={id} />}
+        {view === 'table' && tableSub === 'racks'   && <RackTableView projectId={id} />}
         {view === 'physical' && physicalSub === 'connections' && <PortConnectionsTopology projectId={id} />}
         {view === 'physical' && physicalSub === 'patches'     && <PatchPanelView projectId={id} />}
         {view === 'physical' && physicalSub === 'boxes'      && <SubscriberBoxView projectId={id} />}

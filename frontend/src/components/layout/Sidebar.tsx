@@ -75,7 +75,9 @@ export function Sidebar({ className, style }: SidebarProps) {
     select: (res) => res.data.results,
   })
 
-  const projects = projectsData ?? []
+  const projects = (projectsData ?? []).slice().sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  )
 
   const hasAnyExpanded = expandedProjectIds.size > 0
 
