@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { backupApi, deviceTypesApi, manufacturersApi, deviceModelsApi, portTemplatesApi, patchPanelsApi, patchPanelPortsApi, patchPanelConnectionsApi, panelPortTemplatesApi, panelPortTemplateEntriesApi, authApi } from '@/api/endpoints'
 import { extractApiError, cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { Download, Upload, AlertTriangle, Trash2, Plus, Pencil, ChevronDown, ChevronRight, Package, Layers, Shield, ShieldCheck, KeyRound, Mail, Smartphone } from 'lucide-react'
+import { Download, Upload, AlertTriangle, Trash2, Plus, Pencil, ChevronDown, ChevronRight, Package, Layers, Shield, ShieldCheck, KeyRound, Mail, Smartphone, Eye, EyeOff } from 'lucide-react'
 import type { DeviceTypeOption, Manufacturer, DeviceModel, PortTemplate, PortType, PatchPanel, PatchPanelPort, PanelPortTemplate, PanelPortTemplateEntry } from '@/types'
 
 const PORT_TYPE_OPTIONS: { value: PortType; label: string }[] = [
@@ -196,6 +196,131 @@ export function SettingsPage() {
       {activeTab === 'security' && (
         <SecuritySection navigate={navigate} />
       )}
+    </div>
+  )
+}
+
+// ─── Security Section ─────────────────────────────────────────────────────────
+
+function SecuritySection({ navigate }: { navigate: (path: string) => void }) {
+  const qc = useQueryClient()
+  const [oldPw, setOldPw]     = useState('')
+  const [newPw, setNewPw]     = useState('')
+  const [newPw2, setNewPw2]   = useState('')
+  const [showOld, setShowOld] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+
+  const { data: me } = useQuery({
+    queryKey: ['auth', 'me'],
+    queryFn: () => authApi.me(),
+    select: r => r.data,
+  })
+
+  const changePwMut = useMutation({
+    mutationFn: () => authApi.changePassword(oldPw, newPw),
+    onSuccess: () => {
+      toast.success('Hasło zostało zmienione')
+      setOldPw(''); setNewPw(''); setNewPw2('')
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.detail ?? 'Błąd zmiany hasła')
+    },
+  })
+
+  const canSubmit = oldPw.length > 0 && newPw.length >= 8 && newPw === newPw2
+
+  return (
+    <div className="space-y-6 max-w-xl">
+      {/* Zmiana hasła */}
+      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <KeyRound className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold text-sm">Zmiana hasła</h3>
+        </div>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Obecne hasło</label>
+            <div className="relative">
+              <input
+                type={showOld ? 'text' : 'password'}
+                value={oldPw}
+                onChange={e => setOldPw(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm pr-9"
+              />
+              <button type="button" onClick={() => setShowOld(v => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showOld ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Nowe hasło <span className="text-[10px]">(min. 8 znaków)</span></label>
+            <div className="relative">
+              <input
+                type={showNew ? 'text' : 'password'}
+                value={newPw}
+                onChange={e => setNewPw(e.target.value)}
+                placeholder="••••••••"
+                className="w-full rounded border border-input bg-background px-3 py-1.5 text-sm pr-9"
+              />
+              <button type="button" onClick={() => setShowNew(v => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                {showNew ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground block mb-1">Powtórz nowe hasło</label>
+            <input
+              type="password"
+              value={newPw2}
+              onChange={e => setNewPw2(e.target.value)}
+              placeholder="••••••••"
+              className={cn(
+                "w-full rounded border bg-background px-3 py-1.5 text-sm",
+                newPw2 && newPw !== newPw2 ? 'border-destructive' : 'border-input'
+              )}
+            />
+            {newPw2 && newPw !== newPw2 && (
+              <p className="text-[11px] text-destructive mt-1">Hasła nie są identyczne</p>
+            )}
+          </div>
+          <button
+            onClick={() => changePwMut.mutate()}
+            disabled={!canSubmit || changePwMut.isPending}
+            className="flex items-center gap-1.5 rounded bg-primary px-4 py-1.5 text-sm text-primary-foreground disabled:opacity-50 hover:bg-primary/90"
+          >
+            <KeyRound className="h-3.5 w-3.5" />
+            {changePwMut.isPending ? 'Zapisywanie…' : 'Zmień hasło'}
+          </button>
+        </div>
+      </section>
+
+      {/* Dwuskładnikowe uwierzytelnianie */}
+      <section className="rounded-xl border border-border bg-card p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold text-sm">Uwierzytelnianie dwuskładnikowe (2FA)</h3>
+          </div>
+          {me?.totp_enabled
+            ? <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 flex items-center gap-1"><ShieldCheck className="h-3 w-3"/>Aktywne</span>
+            : <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-muted text-muted-foreground">Nieaktywne</span>
+          }
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Zabezpiecz konto za pomocą aplikacji uwierzytelniającej (TOTP), e-maila lub SMS.
+        </p>
+        <button
+          onClick={() => navigate('/2fa')}
+          className="flex items-center gap-2 rounded border border-border px-4 py-1.5 text-sm hover:bg-accent transition-colors"
+        >
+          <Shield className="h-3.5 w-3.5" />
+          Zarządzaj ustawieniami 2FA
+          <ChevronRight className="h-3.5 w-3.5 ml-auto text-muted-foreground" />
+        </button>
+      </section>
     </div>
   )
 }

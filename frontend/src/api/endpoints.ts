@@ -30,6 +30,8 @@ export const authApi = {
     apiClient.post('/auth/2fa/disable/', { password, totp_code }),
   adminDisable2fa: (userId: number) =>
     apiClient.post(`/auth/2fa/admin-disable/${userId}/`),
+  changePassword: (old_password: string, new_password: string) =>
+    apiClient.post('/auth/change-password/', { old_password, new_password }),
 }
 
 // Projects

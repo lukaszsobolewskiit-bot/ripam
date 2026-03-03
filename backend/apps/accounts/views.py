@@ -314,6 +314,27 @@ def _mask_phone(phone: str) -> str:
     return f"{'*' * (len(phone) - 3)}{phone[-3:]}"
 
 
+# ─── Change password ──────────────────────────────────────────────────────────
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        old_password = request.data.get("old_password", "")
+        new_password = request.data.get("new_password", "")
+        if not old_password or not new_password:
+            return Response({"detail": "Podaj stare i nowe hasło."}, status=status.HTTP_400_BAD_REQUEST)
+        if not request.user.check_password(old_password):
+            return Response({"detail": "Stare hasło jest nieprawidłowe."}, status=status.HTTP_400_BAD_REQUEST)
+        if len(new_password) < 8:
+            return Response({"detail": "Nowe hasło musi mieć co najmniej 8 znaków."}, status=status.HTTP_400_BAD_REQUEST)
+        request.user.set_password(new_password)
+        request.user.save()
+        # Re-authenticate session so user is not logged out
+        login(request, request.user)
+        return Response({"detail": "Hasło zostało zmienione."})
+
+
 # ─── User management ─────────────────────────────────────────────────────────
 
 class IsAdmin(BasePermission):

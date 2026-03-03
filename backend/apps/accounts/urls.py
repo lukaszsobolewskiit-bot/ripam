@@ -28,5 +28,7 @@ urlpatterns = [
     path("auth/2fa/admin-disable/<int:user_id>/",
          views.TwoFactorAdminDisableView.as_view(), name="2fa-admin-disable"),
 
+    path("auth/change-password/", views.ChangePasswordView.as_view(), name="change-password"),
+
     path("", include(router.urls)),
 ]

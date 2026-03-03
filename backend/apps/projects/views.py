@@ -21,7 +21,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Project.objects.annotate(
             site_count=Count("sites", distinct=True),
-        ).select_related("created_by")
+        ).select_related("created_by").order_by("-created_at")
 
     def get_serializer_class(self):
         if self.action == "list":
