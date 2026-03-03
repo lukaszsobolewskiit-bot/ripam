@@ -5,7 +5,7 @@
  */
 import { useState, useMemo, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { patchPanelsApi, patchPanelConnectionsApi, hostsApi, hostPortsApi, sitesApi } from '@/api/endpoints'
+import { patchPanelsApi, patchPanelConnectionsApi, patchPanelPortsApi, hostsApi, hostPortsApi, sitesApi } from '@/api/endpoints'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import {

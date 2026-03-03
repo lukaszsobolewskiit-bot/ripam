@@ -11,6 +11,7 @@ import { UsersPage } from '@/pages/UsersPage'
 import { SettingsPage } from '@/pages/SettingsPage'
 import { TwoFactorPage } from '@/pages/TwoFactorPage'
 import { SiteRacksPage } from '@/pages/SiteRacksPage'
+import { ProjectRacksPage } from '@/pages/ProjectRacksPage'
 import { CommandPalette } from '@/components/search/CommandPalette'
 import { useUIStore } from '@/stores/ui.store'
 import { authApi } from '@/api/endpoints'
@@ -67,6 +68,7 @@ function App() {
           <Route path="/projects" element={<ProjectsListPage />} />
           <Route path="/projects/:projectId/*" element={<ProjectPage />} />
           <Route path="/projects/:projectId/sites/:siteId/racks" element={<SiteRacksPage />} />
+          <Route path="/projects/:projectId/racks" element={<ProjectRacksPage />} />
           <Route path="/wizard" element={<WizardPage />} />
           <Route path="/users" element={<UsersPage />} />
           <Route path="/settings" element={<SettingsPage />} />

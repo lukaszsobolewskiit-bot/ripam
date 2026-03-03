@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 import {
   Search, Moon, Sun, PanelLeftClose, PanelLeft,
   Network, Map, Table, Users, Settings, LogOut,
-  Shield, ShieldCheck, ChevronDown, User as UserIcon,
+  Shield, ShieldCheck, ChevronDown, User as UserIcon, LayoutGrid,
 } from 'lucide-react'
 
 // ─── User dropdown menu ───────────────────────────────────────────────────────
@@ -129,18 +129,23 @@ export function TopBar() {
     ? 'geo'
     : pathAfterProject.startsWith('table')
       ? 'table'
-      : 'topology'
+      : pathAfterProject.startsWith('racks')
+        ? 'racks'
+        : 'topology'
 
-  const viewButtons: { mode: 'topology' | 'geo' | 'table'; icon: typeof Network; label: string; shortLabel: string }[] = [
-    { mode: 'table',    icon: Table,   label: 'Table',    shortLabel: 'Tab'  },
-    { mode: 'topology', icon: Network, label: 'Topology', shortLabel: 'Topo' },
-    { mode: 'geo',      icon: Map,     label: 'Geo Map',  shortLabel: 'Geo'  },
+  const viewButtons: { mode: 'topology' | 'geo' | 'table' | 'racks'; icon: typeof Network; label: string; shortLabel: string }[] = [
+    { mode: 'table',    icon: Table,      label: 'Table',    shortLabel: 'Tab'  },
+    { mode: 'topology', icon: Network,    label: 'Topology', shortLabel: 'Topo' },
+    { mode: 'geo',      icon: Map,        label: 'Geo Map',  shortLabel: 'Geo'  },
+    { mode: 'racks',    icon: LayoutGrid, label: 'Racks',    shortLabel: 'Rack' },
   ]
 
-  const handleViewChange = (mode: 'topology' | 'geo' | 'table') => {
+  const handleViewChange = (mode: 'topology' | 'geo' | 'table' | 'racks') => {
     if (!projectId) return
     if (mode === 'table') {
       navigate(`/projects/${projectId}/table/hosts`)
+    } else if (mode === 'racks') {
+      navigate(`/projects/${projectId}/racks`)
     } else {
       navigate(`/projects/${projectId}/${mode}`)
     }
