@@ -691,12 +691,12 @@ export function RackElevation({ rack, hosts, panels }: Props) {
               title="Przybliż (Ctrl+scroll)">+</button>
           </div>
         </div>
+        <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
             <div className="h-full rounded-full transition-all" style={{ width: `${utilPct}%`, backgroundColor: utilClr }}/>
           </div>
           <span className="text-[10px] font-mono text-muted-foreground w-7 text-right">{Math.round(utilPct)}%</span>
         </div>
-
       </div>
 
       {/* ── Szafa ── */}
