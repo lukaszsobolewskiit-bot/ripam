@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Navigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { projectsApi } from '@/api/endpoints'
+import { projectsApi, exportApi } from '@/api/endpoints'
 import { TopologyCanvas } from '@/components/topology/TopologyCanvas'
 import { GeoMap } from '@/components/geo/GeoMap'
 import { ProjectTableView } from '@/components/data/tables/ProjectTableView'
@@ -9,6 +9,7 @@ import { RackTableView } from '@/components/rack/RackTableView'
 import { PortConnectionsTopology } from '@/components/topology/PortConnectionsTopology'
 import { PatchPanelView } from '@/components/patchpanel/PatchPanelView'
 import { SubscriberBoxView } from '@/components/patchpanel/SubscriberBoxView'
+import { ExportButton } from '@/components/shared/ExportButton'
 
 import { useEffect } from 'react'
 import { useSelectionStore } from '@/stores/selection.store'
@@ -121,6 +122,31 @@ export function ProjectPage() {
               )}>{kbd}</kbd>
             </button>
           ))}
+          {/* Export button — widoczny tylko dla zakładek table/physical/racks */}
+          {view === 'table' && tableSub === 'network' && (
+            <ExportButton
+              className="ml-1"
+              onExcelFn={() => exportApi.excel(id)}
+              onPdfFn={() => exportApi.pdf(id)}
+              fileBaseName={`${project.name}-table`}
+            />
+          )}
+          {view === 'table' && tableSub === 'racks' && (
+            <ExportButton
+              className="ml-1"
+              onExcelFn={() => exportApi.racksExcel(id)}
+              onPdfFn={() => exportApi.racksPdf(id)}
+              fileBaseName={`${project.name}-racks`}
+            />
+          )}
+          {view === 'physical' && (
+            <ExportButton
+              className="ml-1"
+              onExcelFn={() => exportApi.physicalExcel(id)}
+              onPdfFn={() => exportApi.physicalPdf(id)}
+              fileBaseName={`${project.name}-physical`}
+            />
+          )}
         </div>
       </div>
 

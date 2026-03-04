@@ -299,10 +299,18 @@ export const toolsApi = {
 
 // Export
 export const exportApi = {
-  excel: (projectId: number) =>
-    apiClient.get(`/exports/project/${projectId}/excel/`, { responseType: 'blob' }),
-  pdf: (projectId: number) =>
-    apiClient.get(`/exports/project/${projectId}/pdf/`, { responseType: 'blob' }),
+  excel:         (projectId: number) =>
+    apiClient.get(`/exports/project/${projectId}/excel/`,          { responseType: 'blob' }),
+  pdf:           (projectId: number) =>
+    apiClient.get(`/exports/project/${projectId}/pdf/`,            { responseType: 'blob' }),
+  physicalExcel: (projectId: number) =>
+    apiClient.get(`/exports/project/${projectId}/physical/excel/`, { responseType: 'blob' }),
+  physicalPdf:   (projectId: number) =>
+    apiClient.get(`/exports/project/${projectId}/physical/pdf/`,   { responseType: 'blob' }),
+  racksExcel:    (projectId: number) =>
+    apiClient.get(`/exports/project/${projectId}/racks/excel/`,    { responseType: 'blob' }),
+  racksPdf:      (projectId: number) =>
+    apiClient.get(`/exports/project/${projectId}/racks/pdf/`,      { responseType: 'blob' }),
 }
 
 // Backup
