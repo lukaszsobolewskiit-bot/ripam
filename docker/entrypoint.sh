@@ -11,7 +11,7 @@ import os
 User = get_user_model()
 if not User.objects.filter(username='admin').exists():
     password = os.environ.get('DJANGO_ADMIN_PASSWORD', 'admin')
-    User.objects.create_superuser('admin', 'admin@ripenet.local', password, role='admin')
+    User.objects.create_superuser('admin', 'admin@sobnet.local', password, role='admin')
     print('Created admin user')
 else:
     print('Admin user already exists')

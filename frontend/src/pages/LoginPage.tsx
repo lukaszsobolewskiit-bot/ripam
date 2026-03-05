@@ -5,6 +5,7 @@ import { authApi } from '@/api/endpoints'
 import apiClient from '@/api/client'
 import { toast } from 'sonner'
 import { Shield, Eye, EyeOff, Lock, Mail, Smartphone, KeyRound, ChevronLeft } from 'lucide-react'
+import sobnetLogo from '@/assets/sobnet-logo.svg'
 
 type TwoFAMethod = 'totp' | 'email' | 'sms'
 
@@ -169,13 +170,10 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm rounded-xl border border-border bg-card text-card-foreground p-6 shadow-lg">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="w-8 h-8 rounded-lg bg-primary/15 flex items-center justify-center">
-            <Lock className="h-4 w-4 text-primary" />
-          </div>
-          <h1 className="text-xl font-bold">RIPE-NET</h1>
+        <div className="flex flex-col items-center gap-3 mb-6">
+          <img src={sobnetLogo} alt="SobNet" className="h-20 w-auto" />
+          <p className="text-sm text-muted-foreground">IP Address Management</p>
         </div>
-        <p className="text-sm text-muted-foreground mb-6">IP Address Management</p>
 
         {/* ── Step 1: credentials ─────────────────────────────────────────── */}
         {!need2FA && (

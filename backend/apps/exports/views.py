@@ -38,7 +38,7 @@ class DataExportView(APIView):
         )
         content = output.getvalue()
         response = HttpResponse(content, content_type="application/json")
-        response["Content-Disposition"] = f'attachment; filename="ripenet-backup-{date.today()}.json"'
+        response["Content-Disposition"] = f'attachment; filename="sobnet-backup-{date.today()}.json"'
         return response
 
 

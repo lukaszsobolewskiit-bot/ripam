@@ -4,6 +4,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { authApi } from '@/api/endpoints'
 import { cn } from '@/lib/utils'
+import sobnetLogo from '@/assets/sobnet-logo.svg'
 import {
   Search, Moon, Sun, PanelLeftClose, PanelLeft,
   Network, Map, Table, Users, Settings, LogOut,
@@ -157,7 +158,9 @@ export function TopBar() {
         <button onClick={toggleSidebar} className="p-1.5 rounded-md hover:bg-accent" title="Toggle sidebar">
           {sidebarOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeft className="h-4 w-4" />}
         </button>
-        <button onClick={() => navigate('/')} className="font-semibold text-sm tracking-tight hover:text-primary transition-colors">RIPE-NET</button>
+        <button onClick={() => navigate('/')} className="flex items-center hover:opacity-80 transition-opacity shrink-0" title="SobNet IPAM">
+          <img src={sobnetLogo} alt="SobNet" className="h-8 w-auto" style={{ filter: 'var(--logo-filter, none)' }} />
+        </button>
       </div>
 
       <button

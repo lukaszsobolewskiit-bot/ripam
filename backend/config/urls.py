@@ -1,4 +1,4 @@
-"""URL configuration for ripe-net project."""
+"""URL configuration for SobNet project."""
 from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin

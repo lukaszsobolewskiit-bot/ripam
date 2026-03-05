@@ -43,7 +43,7 @@ def verify_totp(secret_b32: str, code: str, window: int = 1) -> bool:
     return False
 
 
-def get_totp_uri(secret_b32: str, username: str, issuer: str = 'RIPE-NET') -> str:
+def get_totp_uri(secret_b32: str, username: str, issuer: str = 'SobNet') -> str:
     """Generuje otpauth:// URI dla Google Authenticator / Aegis / etc."""
     label = urllib.parse.quote(f'{issuer}:{username}')
     params = urllib.parse.urlencode({

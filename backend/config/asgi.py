@@ -1,4 +1,4 @@
-"""ASGI config for ripe-net project."""
+"""ASGI config for SobNet project."""
 import os
 from django.core.asgi import get_asgi_application
 

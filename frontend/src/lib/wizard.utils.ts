@@ -413,7 +413,7 @@ export function tempId(): string {
 // VLAN Template Presets
 // ---------------------------------------------------------------------------
 
-const STORAGE_KEY = 'ripe-net-vlan-presets'
+const STORAGE_KEY = 'sobnet-vlan-presets'
 
 const DEFAULT_PRESETS: VlanPreset[] = [
   {

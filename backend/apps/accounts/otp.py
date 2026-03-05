@@ -55,20 +55,20 @@ def verify_otp(user, code: str, otp_type: str) -> bool:
 
 def send_email_otp(user, code: str):
     """Send OTP via email. Uses Django's EMAIL_* settings."""
-    subject = '[RIPE-NET] Twój kod weryfikacyjny 2FA'
+    subject = '[SobNet] Twój kod weryfikacyjny 2FA'
     body = (
         f'Cześć {user.first_name or user.username},\n\n'
         f'Twój jednorazowy kod weryfikacyjny:\n\n'
         f'    {code}\n\n'
         f'Kod jest ważny przez {OTP_EXPIRES} minut.\n\n'
         f'Jeśli nie prosiłeś o ten kod, zignoruj tę wiadomość.\n\n'
-        f'-- RIPE-NET'
+        f'-- SobNet'
     )
     try:
         send_mail(
             subject=subject,
             message=body,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@ripe-net.local'),
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@sobnet.local'),
             recipient_list=[user.email],
             fail_silently=False,
         )
@@ -95,11 +95,11 @@ def send_sms_otp(user, code: str):
     Option 2 — SMSApi.pl (pip install smsapi-python-client):
         SMS_BACKEND = 'smsapi'
         SMSAPI_TOKEN = 'xxx'
-        SMSAPI_FROM  = 'RIPENET'
+        SMSAPI_FROM  = 'SOBNET'
 
     Default (no config): logs code to console.
     """
-    message = f'[RIPE-NET] Kod 2FA: {code}  (wazny {OTP_EXPIRES} min)'
+    message = f'[SobNet] Kod 2FA: {code}  (wazny {OTP_EXPIRES} min)'
     backend = getattr(settings, 'SMS_BACKEND', 'console')
 
     if backend == 'twilio':
@@ -137,7 +137,7 @@ def _send_smsapi(phone: str, message: str):
         client.sms.send(
             to=phone,
             message=message,
-            sender=getattr(s, 'SMSAPI_FROM', 'RIPENET'),
+            sender=getattr(s, 'SMSAPI_FROM', 'SOBNET'),
         )
         logger.info('SMS OTP sent via SMSApi to %s', phone)
     except ImportError:

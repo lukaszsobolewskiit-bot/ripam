@@ -1,4 +1,4 @@
-# RipeNet - IP Address Management
+# SobNet - IP Address Management
 
 Web application for managing IP address infrastructure: projects, sites, VLANs, subnets, hosts, DHCP pools, and network tunnels.
 
@@ -48,7 +48,7 @@ The only requirement is [Docker](https://docs.docker.com/get-docker/) (includes 
 
 ```bash
 git clone https://github.com/matziu/ripenet.git
-cd ripenet
+cd sobnet
 docker compose up --build
 ```
 
@@ -85,9 +85,9 @@ cp .env.example .env
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `POSTGRES_DB` | Database name | `ripenet` |
-| `POSTGRES_USER` | Database user | `ripenet` |
-| `POSTGRES_PASSWORD` | Database password | `ripenet` |
+| `POSTGRES_DB` | Database name | `sobnet` |
+| `POSTGRES_USER` | Database user | `sobnet` |
+| `POSTGRES_PASSWORD` | Database password | `sobnet` |
 | `DJANGO_SECRET_KEY` | Django secret key | auto-generated |
 | `DJANGO_ADMIN_PASSWORD` | Initial admin password | `admin` |
 

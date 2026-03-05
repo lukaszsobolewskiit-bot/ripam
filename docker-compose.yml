@@ -5,11 +5,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./docker/init-extensions.sql:/docker-entrypoint-initdb.d/init-extensions.sql
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-ripenet}
-      POSTGRES_USER: ${POSTGRES_USER:-ripenet}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ripenet}
+      POSTGRES_DB: ${POSTGRES_DB:-sobnet}
+      POSTGRES_USER: ${POSTGRES_USER:-sobnet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sobnet}
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ripenet}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sobnet}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -35,9 +35,9 @@ services:
       DJANGO_SETTINGS_MODULE: config.settings.development
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-change-me-in-production}
       DJANGO_ADMIN_PASSWORD: ${DJANGO_ADMIN_PASSWORD:-admin}
-      POSTGRES_DB: ${POSTGRES_DB:-ripenet}
-      POSTGRES_USER: ${POSTGRES_USER:-ripenet}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ripenet}
+      POSTGRES_DB: ${POSTGRES_DB:-sobnet}
+      POSTGRES_USER: ${POSTGRES_USER:-sobnet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sobnet}
       POSTGRES_HOST: db
       REDIS_URL: redis://redis:6379/0
     depends_on:

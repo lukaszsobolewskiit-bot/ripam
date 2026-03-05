@@ -89,3 +89,11 @@
 .dark *::-webkit-scrollbar-thumb:hover {
   background: #6b7280;
 }
+
+/* SobNet logo — invert w dark mode (SVG jest czarny) */
+:root {
+  --logo-filter: none;
+}
+.dark {
+  --logo-filter: invert(1) brightness(1.2);
+}
