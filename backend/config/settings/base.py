@@ -73,9 +73,9 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": env("POSTGRES_DB", default="sobnet"),
-        "USER": env("POSTGRES_USER", default="sobnet"),
-        "PASSWORD": env("POSTGRES_PASSWORD", default="sobnet"),
+        "NAME": env("POSTGRES_DB", default="ripenet"),
+        "USER": env("POSTGRES_USER", default="ripenet"),
+        "PASSWORD": env("POSTGRES_PASSWORD", default="ripenet"),
         "HOST": env("POSTGRES_HOST", default="db"),
         "PORT": env("POSTGRES_PORT", default="5432"),
     }
