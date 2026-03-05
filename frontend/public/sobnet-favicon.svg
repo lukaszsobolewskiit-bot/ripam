@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Białe tło -->
+  <rect width="64" height="64" fill="#ffffff"/>
+  <!-- Ramka prostokątna jak w logo -->
+  <rect x="2.5" y="2.5" width="59" height="59" fill="none" stroke="#000000" stroke-width="2.5"/>
+
+  <!-- Górna linia: SoB w stylu kursywy -->
+  <text
+    x="6"
+    y="30"
+    font-family="'Lucida Calligraphy','Brush Script MT','Comic Sans MS',cursive"
+    font-size="22"
+    font-style="italic"
+    fill="#000000"
+  >SoB</text>
+
+  <!-- Dolna linia: NET w Montserrat/sans -->
+  <text
+    x="10"
+    y="52"
+    font-family="Montserrat,'Arial Black',Arial,sans-serif"
+    font-size="16"
+    font-weight="700"
+    fill="#000000"
+    letter-spacing="2"
+  >NET</text>
+</svg>
